@@ -28,8 +28,8 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      - name: Executar testes unitários
-        run: mvn test
+      - name: Executar testes (unit + integração) e gerar cobertura
+        run: mvn verify
       - name: Gerar badge de cobertura JaCoCo
         id: jacoco
         uses: cicirello/jacoco-badge-generator@v2.0.1
