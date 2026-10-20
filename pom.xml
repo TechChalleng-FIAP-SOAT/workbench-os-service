@@ -20,8 +20,9 @@
 		<mapstruct.version>1.6.3</mapstruct.version>
 		<aws.sdk.version>2.29.1</aws.sdk.version>
 		<sonar.maven.plugin.version>5.5.0.6356</sonar.maven.plugin.version>
-		<sonar.projectKey>os-service</sonar.projectKey>
-		<sonar.projectName>os-service</sonar.projectName>
+		<sonar.organization>techchalleng-fiap-soat</sonar.organization>
+		<sonar.projectKey>TechChalleng-FIAP-SOAT_workbench-os-service</sonar.projectKey>
+		<sonar.projectName>workbench-os-service</sonar.projectName>
 		<sonar.host.url>https://sonarcloud.io</sonar.host.url>
 		<sonar.coverage.jacoco.xmlReportPaths>target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
 	</properties>
