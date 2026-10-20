@@ -1,0 +1,82 @@
+spring:
+  application:
+    name: os-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/os_service}
+    username: ${SPRING_DATASOURCE_USERNAME:dbadmin}
+    password: ${SPRING_DATASOURCE_PASSWORD:senha-super-segura}
+    hikari:
+      max-lifetime: 1740000
+      keepalive-time: 300000
+      validation-timeout: 5000
+  jpa:
+    hibernate:
+      # Flyway é a fonte de verdade do schema; Hibernate apenas valida.
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+logging:
+  file:
+    name: /tmp/app.log
+  level:
+    root: INFO
+
+management:
+  metrics:
+    tags:
+      service: ${DD_SERVICE:${spring.application.name}}
+      env: ${DD_ENV:local}
+      version: ${DD_VERSION:local}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  datadog:
+    metrics:
+      export:
+        enabled: ${DD_METRICS_ENABLED:false}
+        api-key: ${DD_API_KEY:}
+        uri: ${DD_METRICS_URI:https://api.datadoghq.com}
+        step: 1m
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa}
+  expiration: ${JWT_EXPIRATION:86400000}
+
+# -----------------------------------------------------------------------------
+# Mensageria (SNS/SQS) — Fase 4, Etapa 2.
+#  - enabled=false (default): usa o LoggingOrderNotificationAdapter (sem broker),
+#    de modo que o serviço roda localmente/testes sem AWS nem LocalStack.
+#  - enabled=true: ativa o publisher SNS e o consumer SQS da Saga.
+#  - endpoint: vazio = AWS real; http://localhost:4566 = LocalStack.
+# -----------------------------------------------------------------------------
+messaging:
+  enabled: ${MESSAGING_ENABLED:false}
+  region: ${AWS_REGION:us-east-1}
+  endpoint: ${AWS_ENDPOINT:}
+  order-events-topic-arn: ${ORDER_EVENTS_TOPIC_ARN:}
+  saga-replies-queue-url: ${SAGA_REPLIES_QUEUE_URL:}
+
+# Validação de cliente/veículo no Customer Service (Fase 4, Etapa 6).
+#  - enabled=false (default): usa o NoopCustomerValidationAdapter (sem chamada REST),
+#    de modo que o OS Service roda localmente/testes sem o Customer no ar.
+#  - enabled=true: valida por REST (GET /api/clients/document/{doc} e /api/vehicles/plate/{placa}).
+customer:
+  validation:
+    enabled: ${CUSTOMER_VALIDATION_ENABLED:false}
+    base-url: ${CUSTOMER_SERVICE_URL:}

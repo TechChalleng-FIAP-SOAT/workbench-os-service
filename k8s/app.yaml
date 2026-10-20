@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: os-service
+  namespace: os-service
+  labels:
+    app: os-service
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: os-service
+  template:
+    metadata:
+      labels:
+        app: os-service
+        tags.datadoghq.com/service: os-service
+        tags.datadoghq.com/version: "1.0.0"
+      annotations:
+        admission.datadoghq.com/java-lib.version: "latest"
+        ad.datadoghq.com/os-service.logs: '[{"source":"java","service":"os-service"}]'
+        ad.datadoghq.com/os-service.checks: '{"http_check":{"init_config":{},"instances":[{"name":"os-service-health","url":"http://%%host%%:8080/actuator/health","timeout":5}]}}'
+    spec:
+      containers:
+        - name: os-service
+          image: REPLACE_IMAGE
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: os-service-config
+            - secretRef:
+                name: os-service-secret
+          env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_ENTITY_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+            - name: DD_LOGS_INJECTION
+              value: "true"
+            - name: DD_PROFILING_ENABLED
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: os-service
+  namespace: os-service
+  labels:
+    app: os-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: os-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
