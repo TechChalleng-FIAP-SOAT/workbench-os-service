@@ -44,18 +44,18 @@ if ! dashboards_json="$(dd_api GET "${API}/api/v1/dashboard")"; then
   exit 1
 fi
 
-# --- Dashboard (casa por título) ---
-dash_file="datadog/dashboards/os-service.json"
-title="$(jq -r '.title' "${dash_file}")"
-dash_id="$(printf '%s' "${dashboards_json}" | jq -r --arg t "${title}" '.dashboards[]? | select(.title==$t) | .id' | head -n1)"
-
-if [ -n "${dash_id}" ] && [ "${dash_id}" != "null" ]; then
-  echo "Atualizando dashboard '${title}' (${dash_id})"
-  dd_api PUT "${API}/api/v1/dashboard/${dash_id}" "${dash_file}" >/dev/null
-else
-  echo "Criando dashboard '${title}'"
-  dd_api POST "${API}/api/v1/dashboard" "${dash_file}" >/dev/null
-fi
+# --- Dashboards (casa por título) — aplica todos os JSONs em datadog/dashboards/ ---
+for dash_file in datadog/dashboards/*.json; do
+  title="$(jq -r '.title' "${dash_file}")"
+  dash_id="$(printf '%s' "${dashboards_json}" | jq -r --arg t "${title}" '.dashboards[]? | select(.title==$t) | .id' | head -n1)"
+  if [ -n "${dash_id}" ] && [ "${dash_id}" != "null" ]; then
+    echo "Atualizando dashboard '${title}' (${dash_id})"
+    dd_api PUT "${API}/api/v1/dashboard/${dash_id}" "${dash_file}" >/dev/null
+  else
+    echo "Criando dashboard '${title}'"
+    dd_api POST "${API}/api/v1/dashboard" "${dash_file}" >/dev/null
+  fi
+done
 
 # --- Monitores (casa por nome) ---
 all_monitors="$(dd_api GET "${API}/api/v1/monitor")"
