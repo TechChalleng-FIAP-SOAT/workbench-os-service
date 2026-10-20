@@ -1,0 +1,64 @@
+# Helm values para o chart oficial datadog/datadog — enxuto para um node group
+# pequeno (ex.: um único t3.small). Mantém o que a observabilidade do serviço
+# precisa:
+#   * Node Agent (DaemonSet) — kubernetes.cpu/memory.* (via kubelet), logs, APM intake
+#   * Cluster Agent — admission controller que injeta o dd-java-agent (traces APM)
+# Desligado para poupar CPU/memória: kube-state-metrics, process agent,
+# orchestrator explorer. Trade-off: métricas de *state* do kube são perdidas, mas
+# kubernetes.cpu.usage.total / kubernetes.memory.usage vêm do node agent e os
+# painéis continuam funcionando.
+#
+#   helm repo add datadog https://helm.datadoghq.com
+#   kubectl create secret generic datadog-secret \
+#     --namespace datadog --from-literal api-key="$DD_API_KEY"
+#   helm upgrade --install datadog datadog/datadog \
+#     --namespace datadog --create-namespace -f k8s/datadog/values.yaml
+datadog:
+  # A API key é lida de um secret pré-criado para nunca viver no git.
+  # O nome da chave do secret DEVE ser "api-key".
+  apiKeyExistingSecret: datadog-secret
+  site: datadoghq.com
+  clusterName: workbench-platform
+  kubeStateMetricsEnabled: false
+  orchestratorExplorer:
+    enabled: false
+  processAgent:
+    enabled: false
+  logs:
+    enabled: true
+    # Opt-in por pod via annotations ad.datadoghq.com/<container>.logs.
+    containerCollectAll: false
+  apm:
+    # Expõe o trace-agent na TCP 8126; o dd-java-agent injetado envia traces
+    # para cá → trace.servlet.request.
+    portEnabled: true
+
+agents:
+  containers:
+    agent:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 512Mi
+    traceAgent:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+
+clusterAgent:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 384Mi
+  admissionController:
+    # Injeta o dd-java-agent nos pods que têm a annotation
+    # admission.datadoghq.com/java-lib.version (ver k8s/app.yaml).
+    enabled: true
+    mutateUnlabelled: false

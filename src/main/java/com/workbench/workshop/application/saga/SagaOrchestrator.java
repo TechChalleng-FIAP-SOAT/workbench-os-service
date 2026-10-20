@@ -65,6 +65,8 @@ public class SagaOrchestrator {
     public void start(ServiceOrder order, List<ReserveItem> items) {
         SagaState saga = SagaState.start(order.getId());
         saga.advanceTo(SagaStep.AGUARDANDO_RESERVA, "INICIADA");
+        log.info("Saga iniciada; solicitando reserva de estoque: os={}, itens={}",
+                order.getId(), items.size());
 
         Map<String, Object> payload = Map.of("items", items.stream()
                 .map(i -> Map.<String, Object>of("productId", i.productId(), "quantity", i.quantity()))
@@ -91,6 +93,7 @@ public class SagaOrchestrator {
         SagaState saga = requireSaga(osId);
         advanceOrder(osId, OrderServiceStatusEnum.APROVADO);
         saga.advanceTo(SagaStep.AGUARDANDO_PAGAMENTO, "APROVACAO");
+        log.info("Orçamento aprovado pelo cliente; confirmando reserva de estoque: os={}", osId);
         dispatch(saga, "ComandoConfirmarReserva", osId, Map.of());
         sagaStateRepository.save(saga);
     }
@@ -141,6 +144,7 @@ public class SagaOrchestrator {
     // obra (dos serviços da OS, dona do laborCost). O Billing soma as duas partes.
     private void onReservaConfirmada(SagaState saga, UUID osId, Map<String, Object> payload) {
         saga.advanceTo(SagaStep.AGUARDANDO_ORCAMENTO, "RESERVA");
+        log.info("Reserva confirmada; solicitando orçamento: os={}", osId);
 
         Map<String, Object> command = new HashMap<>();
         command.put("parts", payload.getOrDefault("parts", List.of()));
@@ -210,6 +214,7 @@ public class SagaOrchestrator {
         saga.advanceTo(SagaStep.AGUARDANDO_APROVACAO, "ORCAMENTO");
         saga.clearPendingCommand(); // pausa humana: nenhum comando pendente aguardando resposta
         sagaStateRepository.save(saga);
+        log.info("Orçamento gerado; OS aguardando aprovação do cliente: os={}", osId);
     }
 
     // Reserva baixada (estoque confirmado após aprovação): resposta recebida; a OS segue
@@ -237,6 +242,7 @@ public class SagaOrchestrator {
         saga.clearPendingCommand();
         saga.markCompleted();
         sagaStateRepository.save(saga);
+        log.info("Pagamento confirmado; Saga concluída (OS paga e entregue): os={}", osId);
     }
 
     // Pagamento falhou → OS permanece retida em PAGAMENTO_PENDENTE (ADR-0005):

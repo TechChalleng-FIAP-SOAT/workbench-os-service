@@ -1,0 +1,25 @@
+<configuration>
+    <!-- Logs estruturados em JSON para o stdout do container. O Datadog Agent
+         coleta do stdout (annotation ad.datadoghq.com/<container>.logs) e o
+         provider <mdc/> promove request_id, user, saga_id e service_order_id a
+         campos pesquisáveis — permitindo filtrar o fluxo de uma OS ponta a ponta
+         por @saga_id. dd.trace_id/dd.span_id (via DD_LOGS_INJECTION) correlacionam
+         logs e traces no APM. -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <timestamp/>
+                <logLevel/>
+                <loggerName/>
+                <threadName/>
+                <message/>
+                <mdc/>
+                <stackTrace/>
+            </providers>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
