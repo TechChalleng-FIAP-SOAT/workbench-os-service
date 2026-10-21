@@ -1,0 +1,113 @@
+{
+  "info": {
+    "name": "Workbench - OS Service",
+    "description": "Collection do microsserviço de Ordem de Serviço (orquestrador da Saga). Cria OS, registra diagnóstico e decide o orçamento (aprovar/recusar). Variáveis: baseUrl, token (JWT com role ADMIN/TECHNICIAN), orderId.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {"key": "baseUrl", "value": "http://localhost:8080"},
+    {"key": "token", "value": ""},
+    {"key": "orderId", "value": ""},
+    {"key": "cpfCnpj", "value": "52998224725"},
+    {"key": "placa", "value": "ABC-1234"}
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{"key": "token", "value": "{{token}}", "type": "string"}]
+  },
+  "item": [
+    {
+      "name": "Service Orders",
+      "item": [
+        {
+          "name": "Criar ordem de serviço",
+          "event": [{"listen": "test", "script": {"type": "text/javascript", "exec": [
+            "if (pm.response.code === 201) {",
+            "  const id = pm.response.json().id;",
+            "  pm.collectionVariables.set('orderId', id);",
+            "  pm.test('OS criada', () => pm.expect(id).to.be.a('string'));",
+            "}"
+          ]}}],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/order", "host": ["{{baseUrl}}"], "path": ["order"]},
+            "body": {"mode": "raw", "raw": "{\n  \"cpfCnpj\": \"{{cpfCnpj}}\",\n  \"placaVeiculo\": \"{{placa}}\",\n  \"serviceTypes\": [\"TROCA_OLEO\", \"ALINHAMENTO\"]\n}"}
+          }
+        },
+        {
+          "name": "Listar OS ativas",
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/order", "host": ["{{baseUrl}}"], "path": ["order"]}}
+        },
+        {
+          "name": "Buscar OS por ID",
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/order/id/{{orderId}}", "host": ["{{baseUrl}}"], "path": ["order", "id", "{{orderId}}"]}}
+        },
+        {
+          "name": "Buscar OS por documento (CPF/CNPJ)",
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/order/document/{{cpfCnpj}}", "host": ["{{baseUrl}}"], "path": ["order", "document", "{{cpfCnpj}}"]}}
+        },
+        {
+          "name": "Atualizar status da OS",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/order/{{orderId}}", "host": ["{{baseUrl}}"], "path": ["order", "{{orderId}}"]},
+            "body": {"mode": "raw", "raw": "{\n  \"status\": \"EM_DIAGNOSTICO\"\n}"}
+          }
+        },
+        {
+          "name": "Registrar diagnóstico (inicia a Saga de reserva/orçamento)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/order/{{orderId}}/diagnosis", "host": ["{{baseUrl}}"], "path": ["order", "{{orderId}}", "diagnosis"]},
+            "body": {"mode": "raw", "raw": "{\n  \"parts\": [\n    { \"productId\": \"PROD-1\", \"quantity\": 2 }\n  ],\n  \"labor\": [\n    { \"serviceName\": \"TROCA_OLEO\", \"laborCost\": 80.00 }\n  ]\n}"}
+          }
+        },
+        {
+          "name": "Decidir orçamento - APROVAR",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/order/{{orderId}}/decision", "host": ["{{baseUrl}}"], "path": ["order", "{{orderId}}", "decision"]},
+            "body": {"mode": "raw", "raw": "{\n  \"decision\": \"APPROVED\"\n}"}
+          }
+        },
+        {
+          "name": "Decidir orçamento - RECUSAR (compensação)",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/order/{{orderId}}/decision", "host": ["{{baseUrl}}"], "path": ["order", "{{orderId}}", "decision"]},
+            "body": {"mode": "raw", "raw": "{\n  \"decision\": \"REJECTED\",\n  \"reason\": \"Cliente não aprovou o orçamento\"\n}"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Service Types",
+      "item": [
+        {
+          "name": "Listar tipos de serviço",
+          "request": {"method": "GET", "url": {"raw": "{{baseUrl}}/service-types", "host": ["{{baseUrl}}"], "path": ["service-types"]}}
+        },
+        {
+          "name": "Atualizar custo de mão de obra",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/service-types/1/labor-cost", "host": ["{{baseUrl}}"], "path": ["service-types", "1", "labor-cost"]},
+            "body": {"mode": "raw", "raw": "{\n  \"laborCost\": 120.00\n}"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {"name": "Health check", "request": {"method": "GET", "auth": {"type": "noauth"}, "url": {"raw": "{{baseUrl}}/actuator/health", "host": ["{{baseUrl}}"], "path": ["actuator", "health"]}}}
+      ]
+    }
+  ]
+}
