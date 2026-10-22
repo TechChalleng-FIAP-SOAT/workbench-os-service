@@ -104,6 +104,29 @@
       ]
     },
     {
+      "name": "Monitoring",
+      "item": [
+        {
+          "name": "Tempo médio por tipo de serviço",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/monitoring/all", "host": ["{{baseUrl}}"], "path": ["monitoring", "all"]},
+            "body": {"mode": "raw", "raw": "{\n  \"timeUnit\": \"HOURS\"\n}"}
+          }
+        },
+        {
+          "name": "Tempo de execução de um serviço",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{baseUrl}}/monitoring/by-id", "host": ["{{baseUrl}}"], "path": ["monitoring", "by-id"]},
+            "body": {"mode": "raw", "raw": "{\n  \"id\": \"<uuid-do-servico>\",\n  \"timeUnit\": \"MINUTES\"\n}"}
+          }
+        }
+      ]
+    },
+    {
       "name": "Health",
       "item": [
         {"name": "Health check", "request": {"method": "GET", "auth": {"type": "noauth"}, "url": {"raw": "{{baseUrl}}/actuator/health", "host": ["{{baseUrl}}"], "path": ["actuator", "health"]}}}

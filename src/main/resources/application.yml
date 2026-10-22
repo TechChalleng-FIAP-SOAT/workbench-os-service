@@ -71,6 +71,8 @@ messaging:
   endpoint: ${AWS_ENDPOINT:}
   order-events-topic-arn: ${ORDER_EVENTS_TOPIC_ARN:}
   saga-replies-queue-url: ${SAGA_REPLIES_QUEUE_URL:}
+  # Tópico dedicado às notificações de status ao cliente (e-mail via subscription).
+  notifications-topic-arn: ${NOTIFICATIONS_TOPIC_ARN:}
 
 # Validação de cliente/veículo no Customer Service (Fase 4, Etapa 6).
 #  - enabled=false (default): usa o NoopCustomerValidationAdapter (sem chamada REST),

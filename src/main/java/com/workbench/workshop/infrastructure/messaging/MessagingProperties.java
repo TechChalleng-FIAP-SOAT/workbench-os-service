@@ -21,4 +21,6 @@ public class MessagingProperties {
     private String endpoint;
     private String orderEventsTopicArn;
     private String sagaRepliesQueueUrl;
+    /** Tópico dedicado às notificações de status ao cliente (e-mail via subscription). */
+    private String notificationsTopicArn;
 }

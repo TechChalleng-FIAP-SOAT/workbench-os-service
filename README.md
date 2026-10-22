@@ -36,9 +36,14 @@ Workbench (Tech Challenge — FIAP Pós Tech, Fase 4).
 - **Diagnóstico**: registro das peças a reservar e da mão de obra por serviço; inicia a Saga
 - Máquina de estados da OS, validada no domínio
 - **Orquestração da Saga**: coordena Execution e Billing, com estado persistido e compensações
-- Decisão do orçamento pelo cliente (aprovar/recusar)
+- Decisão do orçamento pelo cliente (aprovar/recusar), com **validação de ownership**
+  (um cliente só decide a OS do próprio CPF; staff decide qualquer uma)
 - Catálogo de tipos de serviço com custo de mão de obra (editável via API)
 - Consulta de status, listagem priorizada e **histórico** por documento
+- **Notificação de status ao cliente** por e-mail (paridade com o monólito): a cada
+  mudança de status, publica uma mensagem formatada num tópico SNS dedicado; o e-mail
+  do cliente é resolvido no Customer Service por REST
+- **Monitoring**: relatório de tempo médio de execução dos serviços
 
 Fluxo (máquina de estados — ADR-0005):
 
@@ -209,8 +214,9 @@ O Flyway cria o schema na subida. Configuração relevante (env):
 |---|---|---|
 | `MESSAGING_ENABLED` | `false` | Liga SNS/SQS; `false` usa adapters no-op (sem broker) |
 | `AWS_ENDPOINT` | — | vazio = AWS real; `http://localhost:4566` = LocalStack |
-| `CUSTOMER_VALIDATION_ENABLED` | `false` | Valida cliente/veículo no Customer via REST |
+| `CUSTOMER_VALIDATION_ENABLED` | `false` | Valida cliente/veículo no Customer via REST; também habilita a busca do e-mail do cliente para a notificação |
 | `CUSTOMER_SERVICE_URL` | — | URL base do Customer Service |
+| `NOTIFICATIONS_TOPIC_ARN` | — | Tópico SNS de notificação de status ao cliente (e-mail). Sem ele, a notificação é ignorada |
 
 ---
 
@@ -234,9 +240,18 @@ no namespace `os-service`. Provisionar o cluster/credenciais AWS é pré-requisi
 | GET | `/order/document/{cpfCnpj}` | Histórico de OS por documento |
 | PATCH | `/order/{id}` | Atualizar status da OS |
 | POST | `/order/{id}/diagnosis` | Registrar diagnóstico (peças + MO) e iniciar a Saga |
-| POST | `/order/{id}/decision` | Aprovar/recusar o orçamento |
+| POST | `/order/{id}/decision` | Aprovar/recusar o orçamento (cliente só decide a própria OS; staff decide qualquer uma) |
 | GET | `/service-types` | Listar tipos de serviço (com custo de MO) |
 | PUT | `/service-types/{id}/labor-cost` | Atualizar custo/horas de MO de um tipo |
+| POST | `/monitoring/all` | Tempo médio de execução por tipo de serviço (SECONDS/MINUTES/HOURS) |
+| POST | `/monitoring/by-id` | Tempo de execução de um serviço específico |
+
+> **Autorização:** rotas `/order/document/**` aceitam CLIENT/USER/ADMIN/TECHNICIAN;
+> as demais exigem ADMIN/TECHNICIAN. Na decisão do orçamento, um token de **cliente**
+> só pode decidir a OS do próprio CPF (ownership); staff decide qualquer OS.
+
+> **Monitoring** (paridade com o monólito): relatório gerencial de tempo médio de
+> execução, medido entre o primeiro `DOING` e o primeiro `DONE` de cada serviço.
 
 ---
 
@@ -259,4 +274,5 @@ no namespace `os-service`. Provisionar o cluster/credenciais AWS é pré-requisi
 | Swagger UI | http://localhost:8080/swagger-ui/index.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 
-> Coleção de testes de API (Bruno) da plataforma: `workbench-monolith/bruno`.
+> **Collection Postman** deste serviço: `postman/os-service.postman_collection.json`.
+> Collection unificada da plataforma (+ fluxo Saga E2E): `workbench-technical-documentation/postman`.

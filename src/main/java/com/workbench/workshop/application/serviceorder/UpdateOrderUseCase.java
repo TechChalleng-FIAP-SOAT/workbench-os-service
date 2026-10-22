@@ -18,6 +18,7 @@ public class UpdateOrderUseCase {
 
     private final ServiceOrderRepository serviceOrderRepository;
     private final OrderNotificationPort notificationPort;
+    private final com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
     private final OrderMetricsPort metrics;
 
     @Transactional
@@ -36,6 +37,7 @@ public class UpdateOrderUseCase {
             ServiceOrder saved = serviceOrderRepository.save(order);
 
             notificationPort.notifyStatusChange(saved);
+            customerNotificationPort.notifyCustomer(saved);
             metrics.recordTimeInStatus(previousStatus, enteredAt);
         } catch (RuntimeException exception) {
             metrics.processingFailed("update_status");
