@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -48,7 +49,9 @@ public class GetAverageExecutionTimeByIdUseCase {
         LocalDateTime doneTime = findEarliestStatusTime(statuses, ServiceStatusEnum.DONE);
 
         if (doingTime != null && doneTime != null && doneTime.isAfter(doingTime)) {
-            return timeUnit.calculate(Duration.between(doingTime, doneTime));
+            ZoneId zone = ZoneId.of("America/Sao_Paulo");
+            return timeUnit.calculate(Duration.between(
+                    doingTime.atZone(zone).toInstant(), doneTime.atZone(zone).toInstant()));
         }
         return 0.0;
     }

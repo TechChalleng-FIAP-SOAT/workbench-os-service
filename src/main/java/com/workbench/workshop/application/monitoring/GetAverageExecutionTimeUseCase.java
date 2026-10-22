@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -64,9 +65,17 @@ public class GetAverageExecutionTimeUseCase {
         LocalDateTime doneTime = findEarliestStatusTime(status, ServiceStatusEnum.DONE);
 
         if (doingTime != null && doneTime != null && doneTime.isAfter(doingTime)) {
-            return timeUnit.calculate(Duration.between(doingTime, doneTime));
+            return timeUnit.calculate(toDuration(doingTime, doneTime));
         }
         return 0.0;
+    }
+
+    // Converte para Instant (zone-aware) no fuso do projeto antes de medir a
+    // duração: medir intervalo com LocalDateTime (sem fuso) é frágil na virada de
+    // horário de verão (java:S8700).
+    private Duration toDuration(LocalDateTime start, LocalDateTime end) {
+        ZoneId zone = ZoneId.of("America/Sao_Paulo");
+        return Duration.between(start.atZone(zone).toInstant(), end.atZone(zone).toInstant());
     }
 
     private LocalDateTime findEarliestStatusTime(List<Status> statuses, ServiceStatusEnum targetStatus) {
