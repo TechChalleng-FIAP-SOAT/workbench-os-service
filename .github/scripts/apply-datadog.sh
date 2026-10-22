@@ -21,13 +21,13 @@ dd_api() {
     -H "DD-APPLICATION-KEY: ${DD_APP_KEY}"
     -H "Content-Type: application/json"
     -w $'\n%{http_code}')
-  [ -n "${data_file}" ] && curl_args+=(--data-binary @"${data_file}")
+  [[ -n "${data_file}" ]] && curl_args+=(--data-binary @"${data_file}")
 
   local out code body
   out="$(curl "${curl_args[@]}" "${url}")" || { echo "::error::curl transport error on ${method} ${url}" >&2; return 1; }
   code="${out##*$'\n'}"
   body="${out%$'\n'*}"
-  if [ "${code}" -ge 400 ]; then
+  if [[ "${code}" -ge 400 ]]; then
     echo "::error::Datadog API ${method} ${url} returned HTTP ${code}" >&2
     printf '%s\n' "${body}" | head -c 2000 >&2; echo >&2
     return 1
@@ -48,7 +48,7 @@ fi
 for dash_file in datadog/dashboards/*.json; do
   title="$(jq -r '.title' "${dash_file}")"
   dash_id="$(printf '%s' "${dashboards_json}" | jq -r --arg t "${title}" '.dashboards[]? | select(.title==$t) | .id' | head -n1)"
-  if [ -n "${dash_id}" ] && [ "${dash_id}" != "null" ]; then
+  if [[ -n "${dash_id}" ]] && [[ "${dash_id}" != "null" ]]; then
     echo "Atualizando dashboard '${title}' (${dash_id})"
     dd_api PUT "${API}/api/v1/dashboard/${dash_id}" "${dash_file}" >/dev/null
   else
@@ -62,7 +62,7 @@ all_monitors="$(dd_api GET "${API}/api/v1/monitor")"
 for f in datadog/monitors/*.json; do
   name="$(jq -r '.name' "${f}")"
   mid="$(printf '%s' "${all_monitors}" | jq -r --arg n "${name}" '.[]? | select(.name==$n) | .id' | head -n1)"
-  if [ -n "${mid}" ] && [ "${mid}" != "null" ]; then
+  if [[ -n "${mid}" ]] && [[ "${mid}" != "null" ]]; then
     echo "Atualizando monitor '${name}' (${mid})"
     dd_api PUT "${API}/api/v1/monitor/${mid}" "${f}" >/dev/null
   else
