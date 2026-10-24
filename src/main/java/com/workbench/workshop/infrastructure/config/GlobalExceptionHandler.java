@@ -110,6 +110,7 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    /** Regra de negócio não mapeada → 422 com a mensagem de domínio (controlada). */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(Map.of(

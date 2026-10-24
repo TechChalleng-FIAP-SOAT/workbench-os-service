@@ -31,6 +31,7 @@ class DiagnoseOrderUseCaseTest {
     private ServiceTypeRepository serviceTypeRepository;
     private SagaOrchestrator sagaOrchestrator;
     private OrderNotificationPort notificationPort;
+    private com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
     private OrderMetricsPort metrics;
     private DiagnoseOrderUseCase useCase;
 
@@ -43,9 +44,10 @@ class DiagnoseOrderUseCaseTest {
         serviceTypeRepository = mock(ServiceTypeRepository.class);
         sagaOrchestrator = mock(SagaOrchestrator.class);
         notificationPort = mock(OrderNotificationPort.class);
+        customerNotificationPort = mock(com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort.class);
         metrics = mock(OrderMetricsPort.class);
         useCase = new DiagnoseOrderUseCase(serviceOrderRepository, serviceRepository,
-                serviceTypeRepository, sagaOrchestrator, notificationPort, metrics);
+                serviceTypeRepository, sagaOrchestrator, notificationPort, customerNotificationPort, metrics);
         when(serviceOrderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(serviceRepository.save(any())).thenAnswer(i -> i.getArgument(0));
     }

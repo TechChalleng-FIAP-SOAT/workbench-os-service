@@ -45,6 +45,7 @@ public class DiagnoseOrderUseCase {
     private final ServiceTypeRepository serviceTypeRepository;
     private final SagaOrchestrator sagaOrchestrator;
     private final OrderNotificationPort notificationPort;
+    private final com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
     private final OrderMetricsPort metrics;
 
     /** Peça a reservar no diagnóstico. */
@@ -71,6 +72,7 @@ public class DiagnoseOrderUseCase {
             sagaOrchestrator.start(saved, reserveItems);
 
             notificationPort.notifyStatusChange(saved);
+            customerNotificationPort.notifyCustomer(saved);
             metrics.recordTimeInStatus(OrderServiceStatusEnum.RECEBIDA, order.getCreatedAt());
             return saved;
         } catch (RuntimeException exception) {

@@ -22,6 +22,9 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(h -> h
+                        .frameOptions(fo -> fo.deny())                 // anti-clickjacking (OWASP A05)
+                        .contentTypeOptions(c -> {}))                  // X-Content-Type-Options: nosniff
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()

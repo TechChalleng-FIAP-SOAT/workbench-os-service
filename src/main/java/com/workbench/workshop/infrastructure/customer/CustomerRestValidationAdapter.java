@@ -1,8 +1,10 @@
 package com.workbench.workshop.infrastructure.customer;
 
 import com.workbench.workshop.application.serviceorder.port.out.CustomerValidationPort;
+import com.workbench.workshop.infrastructure.security.ServiceTokenProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -24,9 +26,12 @@ import org.springframework.web.client.RestClientResponseException;
 public class CustomerRestValidationAdapter implements CustomerValidationPort {
 
     private final RestClient restClient;
+    private final ServiceTokenProvider serviceTokenProvider;
 
-    public CustomerRestValidationAdapter(RestClient.Builder builder, CustomerClientProperties props) {
+    public CustomerRestValidationAdapter(RestClient.Builder builder, CustomerClientProperties props,
+                                         ServiceTokenProvider serviceTokenProvider) {
         this.restClient = builder.baseUrl(props.getBaseUrl()).build();
+        this.serviceTokenProvider = serviceTokenProvider;
     }
 
     @Override
@@ -43,7 +48,9 @@ public class CustomerRestValidationAdapter implements CustomerValidationPort {
 
     private void get(String uriTemplate, String pathVar, String notFoundMessage) {
         try {
-            restClient.get().uri(uriTemplate, pathVar).retrieve().toBodilessEntity();
+            restClient.get().uri(uriTemplate, pathVar)
+                    .header(HttpHeaders.AUTHORIZATION, serviceTokenProvider.bearerToken())
+                    .retrieve().toBodilessEntity();
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 404) {
                 throw new CustomerValidationException(notFoundMessage);

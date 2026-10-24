@@ -19,6 +19,7 @@ public class CreateOrderUseCase {
     private final CreateServiceUseCase createServiceUseCase;
     private final ServiceOrderRepository serviceOrderRepository;
     private final OrderNotificationPort notificationPort;
+    private final com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
     private final OrderMetricsPort metrics;
     private final CustomerValidationPort customerValidation;
 
@@ -41,6 +42,7 @@ public class CreateOrderUseCase {
             serviceTypes.forEach(service -> createServiceUseCase.execute(service, saved.getId()));
 
             notificationPort.notifyStatusChange(saved);
+            customerNotificationPort.notifyCustomer(saved);
             metrics.created();
 
             return saved;

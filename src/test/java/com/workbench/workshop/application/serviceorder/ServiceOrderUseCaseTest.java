@@ -46,6 +46,7 @@ class ServiceOrderUseCaseTest {
         @Mock private CreateServiceUseCase createServiceUseCase;
         @Mock private ServiceOrderRepository serviceOrderRepository;
         @Mock private OrderNotificationPort notificationPort;
+        @Mock private com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
         @Mock private OrderMetricsPort metrics;
         @Mock private com.workbench.workshop.application.serviceorder.port.out.CustomerValidationPort customerValidation;
         @InjectMocks private CreateOrderUseCase useCase;
@@ -209,7 +210,9 @@ class ServiceOrderUseCaseTest {
 
         @Mock private ServiceOrderRepository serviceOrderRepository;
         @Mock private OrderNotificationPort notificationPort;
+        @Mock private com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
         @Mock private OrderMetricsPort metrics;
+        @Mock private com.workbench.workshop.application.saga.SagaOrchestrator sagaOrchestrator;
         @InjectMocks private UpdateOrderUseCase useCase;
 
         @Test

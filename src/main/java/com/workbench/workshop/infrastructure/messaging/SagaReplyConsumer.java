@@ -3,6 +3,7 @@ package com.workbench.workshop.infrastructure.messaging;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.workbench.workshop.application.saga.SagaOrchestrator;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -88,16 +89,26 @@ public class SagaReplyConsumer {
                 return;
             }
 
-            log.info("Saga reply received: type={}, sagaId={}, serviceOrderId={}",
-                    envelope.type(), envelope.sagaId(), envelope.serviceOrderId());
+            // Correlação da Saga no MDC: com o encoder JSON, saga_id e
+            // service_order_id viram campos pesquisáveis no Datadog, permitindo
+            // rastrear uma OS ponta a ponta (@saga_id) através dos microsserviços.
+            MDC.put("saga_id", envelope.sagaId());
+            MDC.put("service_order_id", envelope.serviceOrderId());
+            try {
+                log.info("Saga reply received: type={}, sagaId={}, serviceOrderId={}",
+                        envelope.type(), envelope.sagaId(), envelope.serviceOrderId());
 
-            sagaOrchestrator.onEvent(
-                    envelope.type(),
-                    UUID.fromString(envelope.serviceOrderId()),
-                    envelope.payload() == null ? Map.of() : envelope.payload());
+                sagaOrchestrator.onEvent(
+                        envelope.type(),
+                        UUID.fromString(envelope.serviceOrderId()),
+                        envelope.payload() == null ? Map.of() : envelope.payload());
 
-            markProcessed(envelope);
-            delete(queueUrl, message);
+                markProcessed(envelope);
+                delete(queueUrl, message);
+            } finally {
+                MDC.remove("saga_id");
+                MDC.remove("service_order_id");
+            }
         } catch (Exception e) {
             // Não apaga a mensagem: o SQS reentrega e, após maxReceiveCount, vai p/ DLQ.
             log.error("Failed to process saga reply; leaving it for redrive/DLQ. body={}", message.body(), e);

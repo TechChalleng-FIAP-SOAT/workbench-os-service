@@ -1,5 +1,6 @@
 package com.workbench.workshop.application.serviceorder;
 
+import com.workbench.workshop.application.saga.SagaOrchestrator;
 import com.workbench.workshop.application.serviceorder.port.out.OrderMetricsPort;
 import com.workbench.workshop.application.serviceorder.port.out.OrderNotificationPort;
 import com.workbench.workshop.application.serviceorder.port.out.ServiceOrderRepository;
@@ -18,7 +19,9 @@ public class UpdateOrderUseCase {
 
     private final ServiceOrderRepository serviceOrderRepository;
     private final OrderNotificationPort notificationPort;
+    private final com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
     private final OrderMetricsPort metrics;
+    private final SagaOrchestrator sagaOrchestrator;
 
     @Transactional
     public void execute(UUID id, OrderServiceStatusEnum status) {
@@ -36,7 +39,15 @@ public class UpdateOrderUseCase {
             ServiceOrder saved = serviceOrderRepository.save(order);
 
             notificationPort.notifyStatusChange(saved);
+            customerNotificationPort.notifyCustomer(saved);
             metrics.recordTimeInStatus(previousStatus, enteredAt);
+
+            // Ao entrar em PAGAMENTO_PENDENTE (serviço finalizado), a cobrança é criada
+            // automaticamente pela Saga (ComandoCobrarPagamento → Billing). A confirmação
+            // vem depois pelo webhook do gateway.
+            if (status == OrderServiceStatusEnum.PAGAMENTO_PENDENTE) {
+                sagaOrchestrator.onPaymentPending(id);
+            }
         } catch (RuntimeException exception) {
             metrics.processingFailed("update_status");
             throw exception;

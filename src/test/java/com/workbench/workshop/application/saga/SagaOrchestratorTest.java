@@ -29,6 +29,7 @@ class SagaOrchestratorTest {
     private ServiceOrderRepository serviceOrderRepository;
     private com.workbench.workshop.application.service.port.out.ServiceRepository serviceRepository;
     private SagaCommandPort commandPort;
+    private com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
     private SagaOrchestrator orchestrator;
 
     private final UUID osId = UUID.randomUUID();
@@ -39,8 +40,9 @@ class SagaOrchestratorTest {
         serviceOrderRepository = mock(ServiceOrderRepository.class);
         serviceRepository = mock(com.workbench.workshop.application.service.port.out.ServiceRepository.class);
         commandPort = mock(SagaCommandPort.class);
+        customerNotificationPort = mock(com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort.class);
         orchestrator = new SagaOrchestrator(sagaStateRepository, serviceOrderRepository,
-                serviceRepository, commandPort);
+                serviceRepository, commandPort, customerNotificationPort);
         org.springframework.test.util.ReflectionTestUtils.setField(orchestrator, "maxRetries", 3);
         when(sagaStateRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(serviceOrderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
