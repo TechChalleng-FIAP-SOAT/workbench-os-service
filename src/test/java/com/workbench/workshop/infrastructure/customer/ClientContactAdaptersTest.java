@@ -1,5 +1,7 @@
 package com.workbench.workshop.infrastructure.customer;
 
+import com.workbench.workshop.infrastructure.security.JwtProperties;
+import com.workbench.workshop.infrastructure.security.ServiceTokenProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -19,6 +21,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class ClientContactAdaptersTest {
 
     private final CustomerClientProperties props = props("http://customer");
+    private final ServiceTokenProvider serviceTokenProvider =
+            new ServiceTokenProvider(new JwtProperties("akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa", 3600000L));
 
     private static CustomerClientProperties props(String url) {
         var p = new CustomerClientProperties();
@@ -27,7 +31,7 @@ class ClientContactAdaptersTest {
     }
 
     private CustomerRestContactAdapter adapterWith(RestClient.Builder builder) {
-        return new CustomerRestContactAdapter(builder, props);
+        return new CustomerRestContactAdapter(builder, props, serviceTokenProvider);
     }
 
     @Test
@@ -72,7 +76,8 @@ class ClientContactAdaptersTest {
 
     @Test
     void restReturnsEmptyOnConnectionFailure() {
-        var adapter = new CustomerRestContactAdapter(RestClient.builder(), props("http://localhost:59999"));
+        var adapter = new CustomerRestContactAdapter(RestClient.builder(), props("http://localhost:59999"),
+                serviceTokenProvider);
         assertTrue(adapter.findEmailByDocument("52998224725").isEmpty());
     }
 }

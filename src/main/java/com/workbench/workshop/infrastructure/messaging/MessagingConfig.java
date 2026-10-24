@@ -1,5 +1,8 @@
 package com.workbench.workshop.infrastructure.messaging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +26,20 @@ import java.net.URI;
 @ConditionalOnProperty(prefix = "messaging", name = "enabled", havingValue = "true")
 @org.springframework.scheduling.annotation.EnableScheduling
 public class MessagingConfig {
+
+    /**
+     * {@link ObjectMapper} usado pelos publishers/consumers da Saga para
+     * (de)serializar os {@code MessageEnvelope}. No Spring Boot 4 o
+     * {@code ObjectMapper} do Jackson 2 deixou de ser exposto como bean por
+     * autoconfiguração, então o definimos explicitamente aqui. O
+     * {@link JavaTimeModule} garante a serialização de {@code Instant}/datas
+     * presentes nos envelopes.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public ObjectMapper messagingObjectMapper() {
+        return new ObjectMapper().registerModule(new JavaTimeModule());
+    }
 
     @Bean
     public SnsClient snsClient(MessagingProperties props) {

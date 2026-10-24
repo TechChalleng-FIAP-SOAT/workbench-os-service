@@ -1,8 +1,10 @@
 package com.workbench.workshop.infrastructure.customer;
 
 import com.workbench.workshop.application.serviceorder.port.out.ClientContactPort;
+import com.workbench.workshop.infrastructure.security.ServiceTokenProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -25,9 +27,12 @@ import java.util.Optional;
 public class CustomerRestContactAdapter implements ClientContactPort {
 
     private final RestClient restClient;
+    private final ServiceTokenProvider serviceTokenProvider;
 
-    public CustomerRestContactAdapter(RestClient.Builder builder, CustomerClientProperties props) {
+    public CustomerRestContactAdapter(RestClient.Builder builder, CustomerClientProperties props,
+                                      ServiceTokenProvider serviceTokenProvider) {
         this.restClient = builder.baseUrl(props.getBaseUrl()).build();
+        this.serviceTokenProvider = serviceTokenProvider;
     }
 
     @Override
@@ -35,6 +40,7 @@ public class CustomerRestContactAdapter implements ClientContactPort {
         try {
             Map<?, ?> body = restClient.get()
                     .uri("/api/clients/document/{document}", cpfCnpj)
+                    .header(HttpHeaders.AUTHORIZATION, serviceTokenProvider.bearerToken())
                     .retrieve()
                     .body(Map.class);
             if (body == null) {

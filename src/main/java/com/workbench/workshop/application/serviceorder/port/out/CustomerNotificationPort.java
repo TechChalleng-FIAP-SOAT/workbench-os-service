@@ -10,4 +10,10 @@ import com.workbench.workshop.domain.serviceorder.ServiceOrder;
  */
 public interface CustomerNotificationPort {
     void notifyCustomer(ServiceOrder order);
+
+    /**
+     * Notifica o cliente com o LINK de pagamento (checkout) quando a cobrança é
+     * criada. Assim ele paga sem precisar chamar nenhuma API. Best-effort.
+     */
+    void notifyPaymentLink(ServiceOrder order, String checkoutUrl);
 }

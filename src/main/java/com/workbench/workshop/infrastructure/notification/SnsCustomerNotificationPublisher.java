@@ -75,6 +75,61 @@ public class SnsCustomerNotificationPublisher implements CustomerNotificationPor
         }
     }
 
+    @Override
+    public void notifyPaymentLink(ServiceOrder order, String checkoutUrl) {
+        String topicArn = props.getNotificationsTopicArn();
+        if (topicArn == null || topicArn.isBlank()) {
+            log.debug("notifications-topic-arn ausente — link de pagamento não enviado (os={})", order.getId());
+            return;
+        }
+        if (checkoutUrl == null || checkoutUrl.isBlank()) {
+            log.warn("checkoutUrl ausente — link de pagamento não enviado (os={})", order.getId());
+            return;
+        }
+        try {
+            Optional<String> email = clientContactPort.findEmailByDocument(order.getCpfCnpj());
+            String subject = "OS Management - Link de Pagamento da sua Ordem de Servico";
+            String message = buildPaymentMessage(order.getCpfCnpj(), order.getPlacaVeiculo(), checkoutUrl);
+
+            PublishRequest.Builder request = PublishRequest.builder()
+                    .topicArn(topicArn)
+                    .subject(subject)
+                    .message(message);
+            email.ifPresent(e -> request.messageAttributes(Map.of(
+                    "clientEmail", MessageAttributeValue.builder()
+                            .dataType("String").stringValue(e).build())));
+
+            snsClient.publish(request.build());
+            log.info("Link de pagamento publicado: os={}, email={}", order.getId(), email.orElse("(sem e-mail)"));
+        } catch (RuntimeException e) {
+            // Best-effort: não reverte o fluxo de negócio.
+            log.error("Falha ao enviar link de pagamento da OS {}: {}", order.getId(), e.getMessage(), e);
+        }
+    }
+
+    private String buildPaymentMessage(String clientDocument, String vehicleInfo, String checkoutUrl) {
+        return String.format("""
+                ============================================
+                OS Management - Pagamento da Ordem de Servico
+                ============================================
+
+                Ola,
+
+                O orcamento da sua ordem de servico foi aprovado e o servico finalizado.
+                Para concluir, realize o pagamento pelo link abaixo:
+
+                %s
+
+                Cliente (documento): %s
+                Veiculo: %s
+
+                --------------------------------------------
+                Oficina Mecanica - OS Management
+                Este e um email automatico.
+                ============================================
+                """, checkoutUrl, clientDocument, vehicleInfo);
+    }
+
     // --- Mensagens formatadas (portadas do monólito SnsNotificationService) ---
 
     private String buildMessage(String clientDocument, String vehicleInfo, String status) {

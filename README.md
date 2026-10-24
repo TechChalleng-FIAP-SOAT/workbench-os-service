@@ -250,6 +250,16 @@ no namespace `os-service`. Provisionar o cluster/credenciais AWS é pré-requisi
 > as demais exigem ADMIN/TECHNICIAN. Na decisão do orçamento, um token de **cliente**
 > só pode decidir a OS do próprio CPF (ownership); staff decide qualquer OS.
 
+> **Chamadas internas (token de serviço):** ao validar cliente/veículo e resolver o
+> e-mail no Customer Service, o OS Service usa um **token de serviço** (staff, curta
+> duração) emitido pelo `ServiceTokenProvider` com o `JWT_SECRET` compartilhado — porque
+> todos os serviços agora exigem token, inclusive em threads assíncronas da Saga.
+
+> **Pagamento automático + link ao cliente:** quando a OS entra em `PAGAMENTO_PENDENTE`,
+> o OS Service comanda o Billing a criar a cobrança (Saga); ao receber `CobrancaCriada`,
+> envia ao cliente o **link de checkout** por e-mail. O cliente também pode consultar o
+> link em `GET {billing}/api/payments/service-order/{osId}` (campo `checkoutUrl`).
+
 > **Monitoring** (paridade com o monólito): relatório gerencial de tempo médio de
 > execução, medido entre o primeiro `DOING` e o primeiro `DONE` de cada serviço.
 
