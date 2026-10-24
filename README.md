@@ -260,6 +260,17 @@ no namespace `os-service`. Provisionar o cluster/credenciais AWS é pré-requisi
 > envia ao cliente o **link de checkout** por e-mail. O cliente também pode consultar o
 > link em `GET {billing}/api/payments/service-order/{osId}` (campo `checkoutUrl`).
 
+### Boas práticas OWASP aplicadas
+- **A01/A07:** autorização por role em todas as rotas; ownership na decisão do orçamento
+  (cliente só decide a própria OS); JWT validado pelo serviço.
+- **A03 (validação):** Bean Validation nos DTOs; acesso a dados via Spring Data JPA
+  parametrizado (a única query nativa é estática, sem input concatenado).
+- **A05:** headers `X-Frame-Options: DENY` + `nosniff`; `k8s/secret.yaml` com placeholders
+  (`REPLACE_ME`), segredos reais via secret manager.
+- **A09:** CPF do cliente mascarado no log (MDC).
+
+> Hotspot `java:S4502` (CSRF disabled) marcado **Safe**: API REST stateless com JWT.
+
 > **Monitoring** (paridade com o monólito): relatório gerencial de tempo médio de
 > execução, medido entre o primeiro `DOING` e o primeiro `DONE` de cada serviço.
 
