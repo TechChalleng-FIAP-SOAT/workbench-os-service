@@ -35,6 +35,9 @@ public class SnsCustomerNotificationPublisher implements CustomerNotificationPor
     private final MessagingProperties props;
     private final ClientContactPort clientContactPort;
 
+    // S9352: ClientContactPort tem dois beans mutuamente exclusivos via
+    // @ConditionalOnProperty (Noop/REST) — só um existe em runtime; falso positivo.
+    @SuppressWarnings("java:S9352")
     public SnsCustomerNotificationPublisher(SnsClient snsClient, MessagingProperties props,
                                             ClientContactPort clientContactPort) {
         this.snsClient = snsClient;

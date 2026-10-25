@@ -275,4 +275,35 @@ class SagaOrchestratorTest {
 
         assertThrows(IllegalStateException.class, () -> orchestrator.onBudgetApproved(osId));
     }
+
+    @Test
+    void onPaymentPendingCommandsCharge() {
+        when(sagaStateRepository.findByServiceOrderId(osId))
+                .thenReturn(Optional.of(sagaAt(SagaStep.AGUARDANDO_PAGAMENTO)));
+
+        orchestrator.onPaymentPending(osId);
+
+        verify(commandPort).send(eq("ComandoCobrarPagamento"), eq(osId), eq(osId), anyMap());
+    }
+
+    @Test
+    void onPaymentPendingWithoutSagaIsNoop() {
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.empty());
+
+        orchestrator.onPaymentPending(osId); // OS avançada manualmente, sem Saga → não explode
+
+        verify(commandPort, never()).send(any(), any(), any(), anyMap());
+    }
+
+    @Test
+    void onCobrancaCriadaSendsPaymentLinkEmail() {
+        when(sagaStateRepository.findByServiceOrderId(osId))
+                .thenReturn(Optional.of(sagaAt(SagaStep.AGUARDANDO_PAGAMENTO)));
+        when(serviceOrderRepository.findById(osId))
+                .thenReturn(Optional.of(order(OrderServiceStatusEnum.PAGAMENTO_PENDENTE)));
+
+        orchestrator.onEvent("CobrancaCriada", osId, Map.of("checkoutUrl", "https://checkout/xyz"));
+
+        verify(customerNotificationPort).notifyPaymentLink(any(), eq("https://checkout/xyz"));
+    }
 }

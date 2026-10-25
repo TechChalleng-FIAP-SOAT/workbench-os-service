@@ -74,4 +74,39 @@ class SnsCustomerNotificationPublisherTest {
         when(snsClient.publish(any(PublishRequest.class))).thenThrow(new RuntimeException("boom"));
         assertDoesNotThrow(() -> publisher.notifyCustomer(order()));
     }
+
+    @Test
+    void publishesPaymentLinkWithCheckoutUrl() {
+        when(clientContactPort.findEmailByDocument("52998224725"))
+                .thenReturn(Optional.of("maria@example.com"));
+
+        publisher.notifyPaymentLink(order(), "https://checkout/abc123");
+
+        ArgumentCaptor<PublishRequest> captor = ArgumentCaptor.forClass(PublishRequest.class);
+        verify(snsClient).publish(captor.capture());
+        PublishRequest req = captor.getValue();
+        assertTrue(req.subject().toLowerCase().contains("pagamento"));
+        assertTrue(req.message().contains("https://checkout/abc123"));
+        assertEquals("maria@example.com", req.messageAttributes().get("clientEmail").stringValue());
+    }
+
+    @Test
+    void paymentLinkSkippedWhenTopicMissing() {
+        props.setNotificationsTopicArn("");
+        publisher.notifyPaymentLink(order(), "https://checkout/x");
+        verifyNoInteractions(snsClient);
+    }
+
+    @Test
+    void paymentLinkSkippedWhenUrlBlank() {
+        publisher.notifyPaymentLink(order(), "  ");
+        verifyNoInteractions(snsClient);
+    }
+
+    @Test
+    void paymentLinkSnsFailureIsSwallowed() {
+        when(clientContactPort.findEmailByDocument(anyString())).thenReturn(Optional.of("a@b.com"));
+        when(snsClient.publish(any(PublishRequest.class))).thenThrow(new RuntimeException("boom"));
+        assertDoesNotThrow(() -> publisher.notifyPaymentLink(order(), "https://checkout/x"));
+    }
 }

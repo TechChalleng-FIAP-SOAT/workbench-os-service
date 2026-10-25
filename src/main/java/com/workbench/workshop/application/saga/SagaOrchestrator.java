@@ -51,6 +51,10 @@ public class SagaOrchestrator {
     @Value("${saga.max-retries:3}")
     private int maxRetries;
 
+    // S9352: os beans candidatos (Noop/SNS) são mutuamente exclusivos via
+    // @ConditionalOnProperty — só um existe em runtime. O analisador do Sonar não
+    // avalia a condição, então o alerta de ambiguidade é falso positivo.
+    @SuppressWarnings("java:S9352")
     public SagaOrchestrator(SagaStateRepository sagaStateRepository,
                             ServiceOrderRepository serviceOrderRepository,
                             ServiceRepository serviceRepository,
