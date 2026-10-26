@@ -134,8 +134,28 @@ jobs:
       # Opcional: sem DD_API_KEY, o install do Datadog Agent é ignorado e a app
       # sobe sem observabilidade in-cluster (o rollout não é bloqueado).
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      # Valores reais do Secret da app, vindos dos secrets da org (o k8s/secret.yaml
+      # só tem placeholders). DB_URL_* segue a branch (main/develop).
+      DB_URL_OS: ${{ github.ref_name == 'main' && secrets.DB_URL_OS_MAIN || secrets.DB_URL_OS_DEVELOP }}
+      DB_USERNAME_OS: ${{ secrets.DB_USERNAME_OS || 'os_service' }}
+      DB_PASSWORD_OS: ${{ secrets.DB_PASSWORD_OS }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validar secrets obrigatórios
+        run: |
+          missing=0
+          for v in DB_URL_OS DB_USERNAME_OS DB_PASSWORD_OS JWT_SECRET; do
+            if [ -z "${!v}" ]; then
+              case "${v}" in
+                DB_URL_*) src="${v}_MAIN / ${v}_DEVELOP" ;;
+                *)        src="${v}" ;;
+              esac
+              echo "::error::Secret obrigatório vazio ou ausente: ${src} (secrets da org). Sem ele o Secret os-service-secret subiria sem credencial."
+              missing=1
+            fi
+          done
+          [ "${missing}" -eq 0 ] || exit 1
       - name: Configurar credenciais AWS
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
@@ -180,7 +200,16 @@ jobs:
           esac
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/configmap.yaml
-          kubectl apply -f k8s/secret.yaml
+          # Secret com os valores reais (no lugar do k8s/secret.yaml, que só tem
+          # placeholders). Vem depois do ConfigMap no envFrom, então as chaves daqui
+          # prevalecem sobre as do ConfigMap.
+          kubectl create secret generic os-service-secret -n os-service \
+            --from-literal SPRING_DATASOURCE_URL="${DB_URL_OS}" \
+            --from-literal SPRING_DATASOURCE_USERNAME="${DB_USERNAME_OS}" \
+            --from-literal SPRING_DATASOURCE_PASSWORD="${DB_PASSWORD_OS}" \
+            --from-literal JWT_SECRET="${JWT_SECRET}" \
+            --from-literal DD_API_KEY="${DD_API_KEY}" \
+            --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f k8s/app.yaml
           kubectl apply -f k8s/hpa.yaml
           # A tag env das métricas kubernetes.* vem da label tags.datadoghq.com/env
