@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -92,8 +93,12 @@ public class ServiceOrderController {
             description = "Decisao do cliente sobre o orcamento. APPROVED confirma a reserva (baixa de "
                     + "estoque) e a OS vai para APROVADO; REJECTED libera a reserva e a OS vai para RECUSADA.")
     public ResponseEntity<Void> decide(
-            @PathVariable UUID id, @RequestBody DecideOrderRequest request) {
-        decideOrderUseCase.execute(id, request.decision(), request.reason());
+            @PathVariable UUID id, @RequestBody DecideOrderRequest request,
+            Authentication authentication) {
+        boolean isClient = authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_CLIENT".equals(a.getAuthority()));
+        String requesterDocument = authentication == null ? null : authentication.getName();
+        decideOrderUseCase.execute(id, request.decision(), request.reason(), requesterDocument, isClient);
         log.info("Service order budget decided: id={}, decision={}", id, request.decision());
         return ResponseEntity.noContent().build();
     }

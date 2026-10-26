@@ -43,6 +43,7 @@ public class SagaOrchestrator {
     private final ServiceOrderRepository serviceOrderRepository;
     private final ServiceRepository serviceRepository;
     private final SagaCommandPort commandPort;
+    private final com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
     // Serialização interna do payload pendente (Map simples); não depende do Jackson do contexto.
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -50,14 +51,20 @@ public class SagaOrchestrator {
     @Value("${saga.max-retries:3}")
     private int maxRetries;
 
+    // S9352: os beans candidatos (Noop/SNS) são mutuamente exclusivos via
+    // @ConditionalOnProperty — só um existe em runtime. O analisador do Sonar não
+    // avalia a condição, então o alerta de ambiguidade é falso positivo.
+    @SuppressWarnings("java:S9352")
     public SagaOrchestrator(SagaStateRepository sagaStateRepository,
                             ServiceOrderRepository serviceOrderRepository,
                             ServiceRepository serviceRepository,
-                            SagaCommandPort commandPort) {
+                            SagaCommandPort commandPort,
+                            com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort) {
         this.sagaStateRepository = sagaStateRepository;
         this.serviceOrderRepository = serviceOrderRepository;
         this.serviceRepository = serviceRepository;
         this.commandPort = commandPort;
+        this.customerNotificationPort = customerNotificationPort;
     }
 
     /** Inicia a saga ao criar a OS: comanda a reserva de estoque. */
@@ -65,6 +72,8 @@ public class SagaOrchestrator {
     public void start(ServiceOrder order, List<ReserveItem> items) {
         SagaState saga = SagaState.start(order.getId());
         saga.advanceTo(SagaStep.AGUARDANDO_RESERVA, "INICIADA");
+        log.info("Saga iniciada; solicitando reserva de estoque: os={}, itens={}",
+                order.getId(), items.size());
 
         Map<String, Object> payload = Map.of("items", items.stream()
                 .map(i -> Map.<String, Object>of("productId", i.productId(), "quantity", i.quantity()))
@@ -91,6 +100,7 @@ public class SagaOrchestrator {
         SagaState saga = requireSaga(osId);
         advanceOrder(osId, OrderServiceStatusEnum.APROVADO);
         saga.advanceTo(SagaStep.AGUARDANDO_PAGAMENTO, "APROVACAO");
+        log.info("Orçamento aprovado pelo cliente; confirmando reserva de estoque: os={}", osId);
         dispatch(saga, "ComandoConfirmarReserva", osId, Map.of());
         sagaStateRepository.save(saga);
     }
@@ -116,6 +126,30 @@ public class SagaOrchestrator {
                 .orElseThrow(() -> new IllegalStateException("Saga inexistente para a OS " + osId));
     }
 
+    /**
+     * A OS entrou em PAGAMENTO_PENDENTE (serviço finalizado): comanda o Billing a
+     * criar a cobrança automaticamente ({@code ComandoCobrarPagamento}). A confirmação
+     * virá depois pelo webhook do gateway ({@code PagamentoConfirmado}). Idempotente:
+     * se a cobrança já foi comandada para esta OS, não reenvia.
+     */
+    @Transactional
+    public void onPaymentPending(UUID osId) {
+        // Tolerante: OS avançada manualmente (sem Saga ativa) não dispara cobrança — apenas
+        // segue. A geração automática de cobrança só se aplica quando há uma Saga em curso.
+        SagaState saga = sagaStateRepository.findByServiceOrderId(osId).orElse(null);
+        if (saga == null) {
+            log.info("OS em PAGAMENTO_PENDENTE sem Saga ativa; cobrança automática não aplicável: os={}", osId);
+            return;
+        }
+        if ("ComandoCobrarPagamento".equals(saga.getPendingCommand())) {
+            log.info("Cobrança já comandada para a OS; ignorando novo disparo: os={}", osId);
+            return;
+        }
+        log.info("OS em PAGAMENTO_PENDENTE; comandando criação de cobrança: os={}", osId);
+        dispatch(saga, "ComandoCobrarPagamento", osId, Map.of());
+        sagaStateRepository.save(saga);
+    }
+
     /** Processa um evento de resposta da Saga. */
     @Transactional
     public void onEvent(String type, UUID serviceOrderId, Map<String, Object> payload) {
@@ -131,6 +165,7 @@ public class SagaOrchestrator {
             case "OrcamentoFalhou" -> onOrcamentoFalhou(saga, serviceOrderId, payload);
             case "ReservaBaixada" -> onReservaBaixada(saga, serviceOrderId);
             case "ReservaLiberada" -> onReservaLiberada(saga, serviceOrderId);
+            case "CobrancaCriada" -> onCobrancaCriada(saga, serviceOrderId, payload);
             case "PagamentoConfirmado" -> onPagamentoConfirmado(saga, serviceOrderId);
             case "PagamentoFalhou" -> onPagamentoFalhou(saga, serviceOrderId, payload);
             default -> log.warn("Evento ignorado pelo orquestrador: type={}", type);
@@ -141,6 +176,7 @@ public class SagaOrchestrator {
     // obra (dos serviços da OS, dona do laborCost). O Billing soma as duas partes.
     private void onReservaConfirmada(SagaState saga, UUID osId, Map<String, Object> payload) {
         saga.advanceTo(SagaStep.AGUARDANDO_ORCAMENTO, "RESERVA");
+        log.info("Reserva confirmada; solicitando orçamento: os={}", osId);
 
         Map<String, Object> command = new HashMap<>();
         command.put("parts", payload.getOrDefault("parts", List.of()));
@@ -210,6 +246,7 @@ public class SagaOrchestrator {
         saga.advanceTo(SagaStep.AGUARDANDO_APROVACAO, "ORCAMENTO");
         saga.clearPendingCommand(); // pausa humana: nenhum comando pendente aguardando resposta
         sagaStateRepository.save(saga);
+        log.info("Orçamento gerado; OS aguardando aprovação do cliente: os={}", osId);
     }
 
     // Reserva baixada (estoque confirmado após aprovação): resposta recebida; a OS segue
@@ -229,6 +266,21 @@ public class SagaOrchestrator {
         log.info("Compensação concluída (estoque liberado): os={}", osId);
     }
 
+    // Cobrança criada no Billing (resposta do ComandoCobrarPagamento): envia ao cliente
+    // o LINK de pagamento (checkout) por e-mail e segue em PAGAMENTO_PENDENTE aguardando
+    // o webhook do gateway. Sem novo comando pendente.
+    private void onCobrancaCriada(SagaState saga, UUID osId, Map<String, Object> payload) {
+        saga.clearPendingCommand();
+        sagaStateRepository.save(saga);
+
+        Object checkoutUrl = payload.get("checkoutUrl");
+        if (checkoutUrl != null) {
+            serviceOrderRepository.findById(osId).ifPresent(order ->
+                    customerNotificationPort.notifyPaymentLink(order, String.valueOf(checkoutUrl)));
+        }
+        log.info("Cobrança criada; link de pagamento enviado ao cliente; aguardando webhook: os={}", osId);
+    }
+
     // Pagamento confirmado (webhook) → OS vai para PAGO e, em seguida, ENTREGUE.
     private void onPagamentoConfirmado(SagaState saga, UUID osId) {
         advanceOrder(osId, OrderServiceStatusEnum.PAGO);
@@ -237,6 +289,7 @@ public class SagaOrchestrator {
         saga.clearPendingCommand();
         saga.markCompleted();
         sagaStateRepository.save(saga);
+        log.info("Pagamento confirmado; Saga concluída (OS paga e entregue): os={}", osId);
     }
 
     // Pagamento falhou → OS permanece retida em PAGAMENTO_PENDENTE (ADR-0005):

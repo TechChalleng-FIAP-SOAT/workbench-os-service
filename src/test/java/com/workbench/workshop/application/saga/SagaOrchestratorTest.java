@@ -29,6 +29,7 @@ class SagaOrchestratorTest {
     private ServiceOrderRepository serviceOrderRepository;
     private com.workbench.workshop.application.service.port.out.ServiceRepository serviceRepository;
     private SagaCommandPort commandPort;
+    private com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
     private SagaOrchestrator orchestrator;
 
     private final UUID osId = UUID.randomUUID();
@@ -39,8 +40,9 @@ class SagaOrchestratorTest {
         serviceOrderRepository = mock(ServiceOrderRepository.class);
         serviceRepository = mock(com.workbench.workshop.application.service.port.out.ServiceRepository.class);
         commandPort = mock(SagaCommandPort.class);
+        customerNotificationPort = mock(com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort.class);
         orchestrator = new SagaOrchestrator(sagaStateRepository, serviceOrderRepository,
-                serviceRepository, commandPort);
+                serviceRepository, commandPort, customerNotificationPort);
         org.springframework.test.util.ReflectionTestUtils.setField(orchestrator, "maxRetries", 3);
         when(sagaStateRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(serviceOrderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -272,5 +274,36 @@ class SagaOrchestratorTest {
         when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.empty());
 
         assertThrows(IllegalStateException.class, () -> orchestrator.onBudgetApproved(osId));
+    }
+
+    @Test
+    void onPaymentPendingCommandsCharge() {
+        when(sagaStateRepository.findByServiceOrderId(osId))
+                .thenReturn(Optional.of(sagaAt(SagaStep.AGUARDANDO_PAGAMENTO)));
+
+        orchestrator.onPaymentPending(osId);
+
+        verify(commandPort).send(eq("ComandoCobrarPagamento"), eq(osId), eq(osId), anyMap());
+    }
+
+    @Test
+    void onPaymentPendingWithoutSagaIsNoop() {
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.empty());
+
+        orchestrator.onPaymentPending(osId); // OS avançada manualmente, sem Saga → não explode
+
+        verify(commandPort, never()).send(any(), any(), any(), anyMap());
+    }
+
+    @Test
+    void onCobrancaCriadaSendsPaymentLinkEmail() {
+        when(sagaStateRepository.findByServiceOrderId(osId))
+                .thenReturn(Optional.of(sagaAt(SagaStep.AGUARDANDO_PAGAMENTO)));
+        when(serviceOrderRepository.findById(osId))
+                .thenReturn(Optional.of(order(OrderServiceStatusEnum.PAGAMENTO_PENDENTE)));
+
+        orchestrator.onEvent("CobrancaCriada", osId, Map.of("checkoutUrl", "https://checkout/xyz"));
+
+        verify(customerNotificationPort).notifyPaymentLink(any(), eq("https://checkout/xyz"));
     }
 }

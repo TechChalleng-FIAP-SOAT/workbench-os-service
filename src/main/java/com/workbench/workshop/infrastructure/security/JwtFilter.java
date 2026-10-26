@@ -48,12 +48,27 @@ public class JwtFilter extends OncePerRequestFilter {
             }
             var authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication != null) {
-                MDC.put(USER, authentication.getName());
+                MDC.put(USER, mask(authentication.getName()));
             }
             filterChain.doFilter(request, response);
         } finally {
             MDC.remove(USER);
         }
+    }
+
+    /**
+     * Mascara o identificador antes de colocá-lo no MDC/log (OWASP A09 — não logar
+     * dado sensível). Para cliente o subject é o CPF; mantém só os extremos
+     * (ex. {@code 52998224725 -> 529******25}). E-mails de staff passam sem máscara.
+     */
+    static String mask(String subject) {
+        if (subject == null || subject.contains("@") || subject.length() < 6) {
+            return subject;
+        }
+        int keepStart = 3;
+        int keepEnd = 2;
+        int hidden = subject.length() - keepStart - keepEnd;
+        return subject.substring(0, keepStart) + "*".repeat(hidden) + subject.substring(subject.length() - keepEnd);
     }
 
     private void authenticate(Claims claims) {
