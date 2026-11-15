@@ -453,6 +453,41 @@ class SagaOrchestratorTest {
     }
 
     @Test
+    void newSagaRunsToDeliveredWhenEveryReplyCarriesItsRun() {
+        // Caminho real: Saga nova (sagaId aleatório, não o id da OS) da reserva ao pagamento.
+        // Pegou a regressão em que o billing publicava o pagamento com o id da OS.
+        SagaState[] stored = new SagaState[1];
+        when(sagaStateRepository.save(any())).thenAnswer(i -> stored[0] = i.getArgument(0));
+        when(sagaStateRepository.findByServiceOrderId(osId))
+                .thenAnswer(i -> Optional.ofNullable(stored[0]));
+        ServiceOrder order = order(OrderServiceStatusEnum.EM_DIAGNOSTICO);
+        when(serviceOrderRepository.findById(osId)).thenReturn(Optional.of(order));
+
+        orchestrator.start(order, List.of(new SagaOrchestrator.ReserveItem("p1", BigDecimal.ONE)));
+        String run = stored[0].getSagaId().toString();
+        assertNotEquals(osId.toString(), run);
+
+        orchestrator.onEvent("ReservaConfirmada", run, osId, Map.of("parts", List.of()));
+        orchestrator.onEvent("OrcamentoGerado", run, osId, Map.of());
+        orchestrator.onBudgetApproved(osId);
+        orchestrator.onEvent("ReservaBaixada", run, osId, Map.of());
+        order.advanceTo(OrderServiceStatusEnum.EM_EXECUCAO);
+        order.advanceTo(OrderServiceStatusEnum.FINALIZADA);
+        order.advanceTo(OrderServiceStatusEnum.PAGAMENTO_PENDENTE);
+        orchestrator.onPaymentPending(osId);
+        orchestrator.onEvent("CobrancaCriada", run, osId, Map.of("checkoutUrl", "http://checkout"));
+
+        // Pagamento publicado com o id da OS (o bug): descartado, a OS não anda.
+        orchestrator.onEvent("PagamentoConfirmado", osId.toString(), osId, Map.of());
+        assertEquals(OrderServiceStatusEnum.PAGAMENTO_PENDENTE, order.getStatus());
+
+        // Com o sagaId da rodada (o que o billing grava na cobrança): a Saga termina.
+        orchestrator.onEvent("PagamentoConfirmado", run, osId, Map.of());
+        assertEquals(SagaStep.CONCLUIDA, stored[0].getStep());
+        assertEquals(OrderServiceStatusEnum.ENTREGUE, order.getStatus());
+    }
+
+    @Test
     void onEventWithoutSagaIsIgnored() {
         when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.empty());
 
