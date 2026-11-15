@@ -4,7 +4,7 @@ import java.util.Optional;
 
 /**
  * Porta de saída para obter dados de contato do cliente (e-mail) a partir do
- * documento (CPF/CNPJ). O OS Service não acessa o banco do Customer (ADR-0003):
+ * documento (CPF/CNPJ). O OS Service não acessa o banco do Customer (ADR-0006):
  * resolve o contato por REST. O fallback no-op permite rodar/testar sem o
  * Customer Service no ar.
  */

@@ -1,6 +1,8 @@
 package com.workbench.workshop.application.serviceorder;
 
+import com.workbench.workshop.application.AfterCommit;
 import com.workbench.workshop.application.service.CreateServiceUseCase;
+import com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort;
 import com.workbench.workshop.application.serviceorder.port.out.CustomerValidationPort;
 import com.workbench.workshop.application.serviceorder.port.out.OrderMetricsPort;
 import com.workbench.workshop.application.serviceorder.port.out.OrderNotificationPort;
@@ -19,20 +21,20 @@ public class CreateOrderUseCase {
     private final CreateServiceUseCase createServiceUseCase;
     private final ServiceOrderRepository serviceOrderRepository;
     private final OrderNotificationPort notificationPort;
-    private final com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
+    private final CustomerNotificationPort customerNotificationPort;
     private final OrderMetricsPort metrics;
     private final CustomerValidationPort customerValidation;
 
     @Transactional
-    public ServiceOrder execute(String cpfCnpj, String placaVeiculo, List<String> serviceTypes) {
+    public ServiceOrder execute(String cpfCnpj, String licensePlate, List<String> serviceTypes) {
         try {
             // Valida cliente (CPF/CNPJ) e veículo (placa) no Customer Service por REST
-            // (ADR-0003: sem acesso cruzado a banco). Com a validação desligada, o
+            // (ADR-0006: sem acesso cruzado a banco). Com a validação desligada, o
             // adapter no-op deixa passar (dev/testes).
             customerValidation.validateClientExists(cpfCnpj);
-            customerValidation.validateVehicleExists(placaVeiculo);
+            customerValidation.validateVehicleExists(licensePlate);
 
-            ServiceOrder order = ServiceOrder.create(cpfCnpj, placaVeiculo, serviceTypes);
+            ServiceOrder order = ServiceOrder.create(cpfCnpj, licensePlate, serviceTypes);
 
             // Persistir a OS ANTES dos serviços: a tabela `service` tem FK para
             // `service_order` (id_os), então a OS precisa existir primeiro. No
@@ -41,8 +43,10 @@ public class CreateOrderUseCase {
 
             serviceTypes.forEach(service -> createServiceUseCase.execute(service, saved.getId()));
 
-            notificationPort.notifyStatusChange(saved);
-            customerNotificationPort.notifyCustomer(saved);
+            AfterCommit.run("notificações da OS criada " + saved.getId(), () -> {
+                notificationPort.notifyStatusChange(saved);
+                customerNotificationPort.notifyCustomer(saved);
+            });
             metrics.created();
 
             return saved;

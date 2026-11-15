@@ -21,6 +21,13 @@ public interface CustomerValidationPort {
      */
     void validateVehicleExists(String placa);
 
+    /** Customer Service fora do ar ou com erro (mapeada para 503, sem detalhe interno). */
+    class CustomerServiceUnavailableException extends RuntimeException {
+        public CustomerServiceUnavailableException(String detail, Throwable cause) {
+            super(detail, cause);
+        }
+    }
+
     /** Falha de validação de cliente/veículo (mapeada para 404/erro de negócio). */
     class CustomerValidationException extends RuntimeException {
         public CustomerValidationException(String message) {

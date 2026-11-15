@@ -71,7 +71,7 @@ class DiagnoseOrderUseCaseTest {
                 .thenReturn(Optional.of(new ServiceType(UUID.randomUUID(), "TROCA_OLEO", "d",
                         new BigDecimal("100"), new BigDecimal("1"))));
 
-        var parts = List.of(new DiagnoseOrderUseCase.PartItem("p1", new BigDecimal("2")));
+        var parts = List.of(new SagaOrchestrator.ReserveItem("p1", new BigDecimal("2")));
         var services = List.of(new DiagnoseOrderUseCase.ServiceLabor(
                 "TROCA_OLEO", new BigDecimal("150"), new BigDecimal("1.5"), false));
 
@@ -79,6 +79,21 @@ class DiagnoseOrderUseCaseTest {
 
         assertEquals(OrderServiceStatusEnum.EM_DIAGNOSTICO, result.getStatus());
         verify(sagaOrchestrator).start(any(ServiceOrder.class), anyList());
+    }
+
+    @Test
+    void reDiagnosisAfterFailedSagaKeepsStatusAndRestartsTheSaga() {
+        ServiceOrder inDiagnosis = ServiceOrder.reconstitute(osId, "52998224725", "ABC1234",
+                List.of("TROCA_OLEO"), "[TROCA_OLEO]", OrderServiceStatusEnum.EM_DIAGNOSTICO, null,
+                LocalDateTime.now(), LocalDateTime.now());
+        when(serviceOrderRepository.findById(osId)).thenReturn(Optional.of(inDiagnosis));
+        var parts = List.of(new SagaOrchestrator.ReserveItem("p1", BigDecimal.ONE));
+
+        ServiceOrder result = useCase.execute(osId, parts, List.of());
+
+        assertEquals(OrderServiceStatusEnum.EM_DIAGNOSTICO, result.getStatus());
+        verify(sagaOrchestrator).start(inDiagnosis, parts);
+        verifyNoInteractions(notificationPort);
     }
 
     @Test

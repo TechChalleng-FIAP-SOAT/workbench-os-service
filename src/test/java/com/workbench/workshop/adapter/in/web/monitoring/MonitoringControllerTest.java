@@ -34,7 +34,7 @@ class MonitoringControllerTest {
                 .thenReturn(List.of(new ServiceAverageTime("TROCA_OLEO", 2.0)));
 
         var res = controller.getAverageExecutionTime(
-                new MonitoringController.AverageTimeRequest(AverageTimeEnum.HOURS));
+                new MonitoringDtos.AverageTimeRequest(AverageTimeEnum.HOURS));
 
         assertEquals(200, res.getStatusCode().value());
         assertEquals(1, res.getBody().size());
@@ -44,7 +44,7 @@ class MonitoringControllerTest {
     @Test
     void allDefaultsToHoursWhenUnitNull() {
         when(allUseCase.execute(any())).thenReturn(List.of());
-        controller.getAverageExecutionTime(new MonitoringController.AverageTimeRequest(null));
+        controller.getAverageExecutionTime(new MonitoringDtos.AverageTimeRequest(null));
         verify(allUseCase).execute(AverageTimeEnum.HOURS);
     }
 
@@ -55,7 +55,7 @@ class MonitoringControllerTest {
                 .thenReturn(new ServiceAverageTime("REVISAO", 90.0));
 
         var res = controller.getAverageExecutionTimeById(
-                new MonitoringController.AverageTimeByIdRequest(id, AverageTimeEnum.MINUTES));
+                new MonitoringDtos.AverageTimeByIdRequest(id, AverageTimeEnum.MINUTES));
 
         assertEquals(200, res.getStatusCode().value());
         assertEquals(90.0, res.getBody().getAverageTime(), 0.001);

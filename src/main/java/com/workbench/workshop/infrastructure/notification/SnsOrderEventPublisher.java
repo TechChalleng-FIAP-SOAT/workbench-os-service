@@ -50,7 +50,7 @@ public class SnsOrderEventPublisher implements OrderNotificationPort {
                 Map.of(
                         "status", order.getServiceStatus(),
                         "cpfCnpj", order.getCpfCnpj(),
-                        "placa", order.getPlacaVeiculo()
+                        "placa", order.getLicensePlate()
                 )
         );
         try {

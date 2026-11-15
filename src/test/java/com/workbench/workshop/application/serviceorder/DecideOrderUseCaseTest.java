@@ -1,5 +1,6 @@
 package com.workbench.workshop.application.serviceorder;
 
+import com.workbench.workshop.application.Requester;
 import com.workbench.workshop.application.saga.SagaOrchestrator;
 import com.workbench.workshop.application.serviceorder.port.out.OrderMetricsPort;
 import com.workbench.workshop.application.serviceorder.port.out.ServiceOrderRepository;
@@ -23,6 +24,7 @@ class DecideOrderUseCaseTest {
     private DecideOrderUseCase useCase;
 
     private final UUID osId = UUID.randomUUID();
+    private static final Requester STAFF = Requester.staff("admin@workbench.dev");
 
     @BeforeEach
     void setUp() {
@@ -34,25 +36,25 @@ class DecideOrderUseCaseTest {
 
     @Test
     void approvedDelegatesToOrchestrator() {
-        useCase.execute(osId, Decision.APPROVED, null);
+        useCase.execute(osId, Decision.APPROVED, null, STAFF);
         verify(sagaOrchestrator).onBudgetApproved(osId);
     }
 
     @Test
     void rejectedDelegatesWithReason() {
-        useCase.execute(osId, Decision.REJECTED, "muito caro");
+        useCase.execute(osId, Decision.REJECTED, "muito caro", STAFF);
         verify(sagaOrchestrator).onBudgetRejected(osId, "muito caro");
     }
 
     @Test
     void nullDecisionThrows() {
-        assertThrows(IllegalArgumentException.class, () -> useCase.execute(osId, null, null));
+        assertThrows(IllegalArgumentException.class, () -> useCase.execute(osId, null, null, STAFF));
     }
 
     @Test
     void failureIsRecordedInMetrics() {
         doThrow(new IllegalStateException("boom")).when(sagaOrchestrator).onBudgetApproved(osId);
-        assertThrows(IllegalStateException.class, () -> useCase.execute(osId, Decision.APPROVED, null));
+        assertThrows(IllegalStateException.class, () -> useCase.execute(osId, Decision.APPROVED, null, STAFF));
         verify(metrics).processingFailed("decide_order");
     }
 
@@ -67,7 +69,7 @@ class DecideOrderUseCaseTest {
     @Test
     void clientOwnerCanDecide() {
         when(serviceOrderRepository.findById(osId)).thenReturn(Optional.of(orderOwnedBy("52998224725")));
-        useCase.execute(osId, Decision.APPROVED, null, "52998224725", true);
+        useCase.execute(osId, Decision.APPROVED, null, new Requester("529.982.247-25", true));
         verify(sagaOrchestrator).onBudgetApproved(osId);
     }
 
@@ -75,13 +77,13 @@ class DecideOrderUseCaseTest {
     void clientNonOwnerIsRejected() {
         when(serviceOrderRepository.findById(osId)).thenReturn(Optional.of(orderOwnedBy("52998224725")));
         assertThrows(SecurityException.class,
-                () -> useCase.execute(osId, Decision.APPROVED, null, "11111111111", true));
+                () -> useCase.execute(osId, Decision.APPROVED, null, new Requester("11111111111", true)));
         verify(sagaOrchestrator, never()).onBudgetApproved(osId);
     }
 
     @Test
     void staffDecidesWithoutOwnershipCheck() {
-        useCase.execute(osId, Decision.REJECTED, "orcamento alto", "admin@workbench.dev", false);
+        useCase.execute(osId, Decision.REJECTED, "orcamento alto", STAFF);
         verify(sagaOrchestrator).onBudgetRejected(osId, "orcamento alto");
         verify(serviceOrderRepository, never()).findById(osId);
     }

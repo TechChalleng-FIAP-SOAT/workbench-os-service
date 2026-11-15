@@ -52,7 +52,7 @@ public class ServiceOrderPersistenceAdapter implements ServiceOrderRepository {
                 .serviceStatus(order.getServiceStatus())
                 .listService(order.getListService())
                 .cpfCnpj(order.getCpfCnpj())
-                .placaVeiculo(order.getPlacaVeiculo())
+                .licensePlate(order.getLicensePlate())
                 .rejectionReason(order.getRejectionReason())
                 .build();
         if (order.getCreatedAt() != null) {
@@ -68,7 +68,7 @@ public class ServiceOrderPersistenceAdapter implements ServiceOrderRepository {
         return ServiceOrder.reconstitute(
                 entity.getId(),
                 entity.getCpfCnpj(),
-                entity.getPlacaVeiculo(),
+                entity.getLicensePlate(),
                 entity.getListService(),
                 entity.getServiceTypeName(),
                 OrderServiceStatusEnum.valueOf(entity.getServiceStatus()),

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 @Service
@@ -17,6 +18,6 @@ public class FindOrderByIdUseCase {
     @Transactional(readOnly = true)
     public ServiceOrder execute(UUID id) {
         return serviceOrderRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Ordem de servico nao encontrada. ID: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Ordem de serviço não encontrada: " + id));
     }
 }

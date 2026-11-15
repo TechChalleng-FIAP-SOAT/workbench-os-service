@@ -2,7 +2,7 @@ package com.workbench.workshop.domain.saga;
 
 /**
  * Passo atual da Saga da OS (coordenação distribuída — distinto do status de
- * negócio da OS). Ver ADR-0003/0005.
+ * negócio da OS). Ver ADR-0006/0005.
  */
 public enum SagaStep {
     INICIADA,

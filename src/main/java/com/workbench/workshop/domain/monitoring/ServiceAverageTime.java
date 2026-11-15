@@ -1,11 +1,15 @@
 package com.workbench.workshop.domain.monitoring;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
 import lombok.NoArgsConstructor;
 
 /** Tempo médio de execução de um tipo de serviço (paridade com o monólito). */
-@Data
+@Getter
+@EqualsAndHashCode
+@ToString
 @NoArgsConstructor
 @AllArgsConstructor
 public class ServiceAverageTime {

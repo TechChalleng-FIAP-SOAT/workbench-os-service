@@ -1,5 +1,6 @@
 package com.workbench.workshop.infrastructure.customer;
 
+import com.workbench.workshop.application.serviceorder.port.out.CustomerValidationPort;
 import com.workbench.workshop.application.serviceorder.port.out.CustomerValidationPort.CustomerValidationException;
 import com.workbench.workshop.infrastructure.security.JwtProperties;
 import com.workbench.workshop.infrastructure.security.ServiceTokenProvider;
@@ -17,7 +18,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class CustomerRestValidationAdapterTest {
 
     private final ServiceTokenProvider tokenProvider =
-            new ServiceTokenProvider(new JwtProperties("akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa", 3600000L));
+            new ServiceTokenProvider(new JwtProperties("akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa"));
 
     private CustomerClientProperties props(String url) {
         var p = new CustomerClientProperties();
@@ -65,7 +66,7 @@ class CustomerRestValidationAdapterTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(b).build();
         server.expect(requestTo("http://customer/api/clients/document/52998224725"))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
-        assertThrows(IllegalStateException.class,
+        assertThrows(CustomerValidationPort.CustomerServiceUnavailableException.class,
                 () -> adapter(b).validateClientExists("52998224725"));
     }
 }

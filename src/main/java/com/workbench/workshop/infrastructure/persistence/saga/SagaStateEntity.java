@@ -18,6 +18,14 @@ public class SagaStateEntity {
     @Column(name = "service_order_id", nullable = false, unique = true)
     private UUID serviceOrderId;
 
+    /** Rodada atual da Saga (muda a cada novo diagnóstico); vai no sagaId das mensagens. */
+    @Column(name = "saga_id", nullable = false)
+    private UUID sagaId;
+
+    /** Trava otimista: duas transações que leram a mesma versão não gravam as duas. */
+    @Version
+    private Long version;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private SagaStep step;

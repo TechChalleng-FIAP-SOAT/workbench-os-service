@@ -17,6 +17,7 @@ import java.util.NoSuchElementException;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -35,6 +36,11 @@ class ServiceOrderControllerTest {
     private final FindOrderByIdUseCase findOrderByIdUseCase = mock(FindOrderByIdUseCase.class);
     private final ListOrdersUseCase listOrdersUseCase = mock(ListOrdersUseCase.class);
     private final FindOrdersByDocumentUseCase findOrdersByDocumentUseCase = mock(FindOrdersByDocumentUseCase.class);
+    private final RetryPaymentUseCase retryPaymentUseCase = mock(RetryPaymentUseCase.class);
+    private final ListOrderServicesUseCase listOrderServicesUseCase = mock(ListOrderServicesUseCase.class);
+    private final UpdateServiceStatusUseCase updateServiceStatusUseCase = mock(UpdateServiceStatusUseCase.class);
+    private final com.workbench.workshop.application.serviceorder.FindOrderSagaUseCase findOrderSagaUseCase =
+            mock(com.workbench.workshop.application.serviceorder.FindOrderSagaUseCase.class);
 
     private MockMvc mockMvc;
 
@@ -48,7 +54,7 @@ class ServiceOrderControllerTest {
     void setUp() {
         var controller = new ServiceOrderController(createOrderUseCase, updateOrderUseCase,
                 diagnoseOrderUseCase, decideOrderUseCase, findOrderByIdUseCase, listOrdersUseCase,
-                findOrdersByDocumentUseCase);
+                findOrdersByDocumentUseCase, retryPaymentUseCase, listOrderServicesUseCase, updateServiceStatusUseCase, findOrderSagaUseCase);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -87,7 +93,7 @@ class ServiceOrderControllerTest {
 
     @Test
     void findByDocumentReturns200() throws Exception {
-        when(findOrdersByDocumentUseCase.execute("52998224725")).thenReturn(List.of(sampleOrder()));
+        when(findOrdersByDocumentUseCase.execute(eq("52998224725"), any())).thenReturn(List.of(sampleOrder()));
 
         mockMvc.perform(get("/order/document/52998224725"))
                 .andExpect(status().isOk())
@@ -114,6 +120,36 @@ class ServiceOrderControllerTest {
                         .content("{\"status\":\"ENTREGUE\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.status").value(422));
+    }
+
+    @Test
+    void sagaStateShowsWhyItFailed() throws Exception {
+        UUID id = UUID.randomUUID();
+        var saga = com.workbench.workshop.domain.saga.SagaState.reconstitute(1L, id,
+                com.workbench.workshop.domain.saga.SagaStep.FALHOU, List.of("INICIADA"),
+                "Estoque disponível insuficiente", LocalDateTime.now(), LocalDateTime.now());
+        when(findOrderSagaUseCase.execute(id)).thenReturn(saga);
+
+        mockMvc.perform(get("/order/" + id + "/saga"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.step").value("FALHOU"))
+                .andExpect(jsonPath("$.failureReason").value("Estoque disponível insuficiente"));
+    }
+
+    @Test
+    void malformedIdMappedTo400() throws Exception {
+        mockMvc.perform(get("/order/id/nao-e-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Parâmetro 'id' inválido: 'nao-e-uuid'."));
+    }
+
+    @Test
+    void unknownEnumInBodyMappedTo400WithoutJacksonDetails() throws Exception {
+        mockMvc.perform(patch("/order/" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"VOANDO\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.startsWith("Corpo da requisição inválido")));
     }
 
     @Test
@@ -146,7 +182,7 @@ class ServiceOrderControllerTest {
 
     @Test
     void decideApprovedReturns204() throws Exception {
-        doNothing().when(decideOrderUseCase).execute(any(UUID.class), any(), any());
+        doNothing().when(decideOrderUseCase).execute(any(UUID.class), any(), any(), any());
 
         mockMvc.perform(post("/order/" + UUID.randomUUID() + "/decision")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -156,7 +192,7 @@ class ServiceOrderControllerTest {
 
     @Test
     void decideRejectedReturns204() throws Exception {
-        doNothing().when(decideOrderUseCase).execute(any(UUID.class), any(), any());
+        doNothing().when(decideOrderUseCase).execute(any(UUID.class), any(), any(), any());
 
         mockMvc.perform(post("/order/" + UUID.randomUUID() + "/decision")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -28,6 +28,17 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
+      - name: Conferir cópia do contrato da Saga (fonte única no workbench-messaging)
+        run: |
+          url=https://raw.githubusercontent.com/TechChalleng-FIAP-SOAT/workbench-messaging/main/contracts/saga-messages.json
+          if ! curl -fsSL "$url" -o /tmp/saga-messages.json; then
+            echo "::warning::Contrato canônico ainda não publicado na main do workbench-messaging — check pulado."
+            exit 0
+          fi
+          if ! diff -u /tmp/saga-messages.json src/test/resources/contracts/saga-messages.json; then
+            echo "::error::src/test/resources/contracts/saga-messages.json difere do contrato do workbench-messaging. Rode scripts/sync-saga-contract.sh lá e commite a cópia."
+            exit 1
+          fi
       - name: Executar testes (unit + integração) e gerar cobertura
         run: mvn verify
       - name: Gerar badge de cobertura JaCoCo

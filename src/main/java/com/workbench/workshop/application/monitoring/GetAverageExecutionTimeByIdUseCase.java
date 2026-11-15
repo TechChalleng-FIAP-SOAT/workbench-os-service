@@ -26,7 +26,7 @@ public class GetAverageExecutionTimeByIdUseCase {
 
     public ServiceAverageTime execute(UUID id, AverageTimeEnum timeUnit) {
         WorkshopService service = serviceRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Servico nao encontrado. ID: " + id));
+                .orElseThrow(() -> new NoSuchElementException("Serviço não encontrado. ID: " + id));
 
         if (service.getServiceTypeName() == null) {
             return new ServiceAverageTime("Unknown", 0.0);

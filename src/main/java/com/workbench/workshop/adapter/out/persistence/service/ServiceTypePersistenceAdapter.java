@@ -33,6 +33,16 @@ public class ServiceTypePersistenceAdapter implements ServiceTypeRepository {
     }
 
     @Override
+    public boolean existsByName(String name) {
+        return serviceTypeJpaRepository.existsByName(name);
+    }
+
+    @Override
+    public void deleteById(UUID id) {
+        serviceTypeJpaRepository.deleteById(id);
+    }
+
+    @Override
     public ServiceType save(ServiceType serviceType) {
         ServiceTypeEntity entity = (serviceType.getId() != null)
                 ? serviceTypeJpaRepository.findById(serviceType.getId()).orElseGet(ServiceTypeEntity::new)

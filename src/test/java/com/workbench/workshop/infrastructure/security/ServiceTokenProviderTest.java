@@ -15,7 +15,7 @@ class ServiceTokenProviderTest {
 
     private static final String SECRET = "akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa";
     private final ServiceTokenProvider provider =
-            new ServiceTokenProvider(new JwtProperties(SECRET, 3600000L));
+            new ServiceTokenProvider(new JwtProperties(SECRET));
 
     @Test
     void emitsSignedStaffServiceToken() {

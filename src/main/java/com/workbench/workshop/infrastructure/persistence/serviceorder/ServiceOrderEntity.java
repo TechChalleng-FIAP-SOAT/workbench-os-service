@@ -34,7 +34,7 @@ public class ServiceOrderEntity {
     private String cpfCnpj;
 
     @Column(name = "placa", nullable = false)
-    private String placaVeiculo;
+    private String licensePlate;
 
     @Column(name = "rejection_reason")
     private String rejectionReason;

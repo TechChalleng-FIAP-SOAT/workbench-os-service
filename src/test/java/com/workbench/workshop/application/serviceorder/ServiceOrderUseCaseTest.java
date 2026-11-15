@@ -1,5 +1,6 @@
 package com.workbench.workshop.application.serviceorder;
 
+import com.workbench.workshop.application.Requester;
 import com.workbench.workshop.application.service.CreateServiceUseCase;
 import com.workbench.workshop.application.serviceorder.port.out.OrderMetricsPort;
 import com.workbench.workshop.application.serviceorder.port.out.OrderNotificationPort;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -57,7 +59,7 @@ class ServiceOrderUseCaseTest {
             String placa = "ABC1234";
             List<String> serviceTypes = List.of("Pintura", "Mecanica");
 
-            when(createServiceUseCase.execute(anyString(), any(UUID.class))).thenReturn(new WorkshopService());
+            when(createServiceUseCase.execute(anyString(), any(UUID.class))).thenReturn(WorkshopService.create("TROCA_OLEO", UUID.randomUUID(), BigDecimal.ZERO, null, java.time.LocalDateTime.now()));
             when(serviceOrderRepository.save(any(ServiceOrder.class))).thenAnswer(i -> i.getArgument(0));
 
             ServiceOrder result = useCase.execute(cpf, placa, serviceTypes);
@@ -65,7 +67,7 @@ class ServiceOrderUseCaseTest {
             assertNotNull(result);
             assertNotNull(result.getId());
             assertEquals(cpf, result.getCpfCnpj());
-            assertEquals("ABC1234", result.getPlacaVeiculo());
+            assertEquals("ABC1234", result.getLicensePlate());
             assertEquals(OrderServiceStatusEnum.RECEBIDA.getStatus(), result.getServiceStatus());
             assertEquals(serviceTypes, result.getListService());
             verify(createServiceUseCase, times(2)).execute(anyString(), any(UUID.class));
@@ -80,7 +82,7 @@ class ServiceOrderUseCaseTest {
             String placa = "ABC1234";
             List<String> serviceTypes = List.of("Pintura", "Mecanica", "Eletrica");
 
-            when(createServiceUseCase.execute(anyString(), any(UUID.class))).thenReturn(new WorkshopService());
+            when(createServiceUseCase.execute(anyString(), any(UUID.class))).thenReturn(WorkshopService.create("TROCA_OLEO", UUID.randomUUID(), BigDecimal.ZERO, null, java.time.LocalDateTime.now()));
             when(serviceOrderRepository.save(any(ServiceOrder.class))).thenAnswer(i -> i.getArgument(0));
 
             useCase.execute(cpf, placa, serviceTypes);
@@ -98,7 +100,7 @@ class ServiceOrderUseCaseTest {
             // (@Transactional no fluxo real) desfaz o insert da OS.
             when(serviceOrderRepository.save(any(ServiceOrder.class))).thenAnswer(i -> i.getArgument(0));
             when(createServiceUseCase.execute(anyString(), any(UUID.class)))
-                    .thenThrow(new RuntimeException("tipo inexistente"));
+                    .thenThrow(new com.workbench.workshop.application.service.UnknownServiceTypeException("NAO_EXISTE"));
 
             assertThrows(RuntimeException.class,
                     () -> useCase.execute("12345678900", "ABC1234", List.of("X")));
@@ -109,7 +111,7 @@ class ServiceOrderUseCaseTest {
 
         @Test
         void validatesClientAndVehicleBeforeCreating() {
-            when(createServiceUseCase.execute(anyString(), any(UUID.class))).thenReturn(new WorkshopService());
+            when(createServiceUseCase.execute(anyString(), any(UUID.class))).thenReturn(WorkshopService.create("TROCA_OLEO", UUID.randomUUID(), BigDecimal.ZERO, null, java.time.LocalDateTime.now()));
             when(serviceOrderRepository.save(any(ServiceOrder.class))).thenAnswer(i -> i.getArgument(0));
 
             useCase.execute("12345678900", "ABC1234", List.of("Pintura"));
@@ -171,7 +173,7 @@ class ServiceOrderUseCaseTest {
 
             RuntimeException ex = assertThrows(RuntimeException.class, () -> useCase.execute(id));
 
-            assertTrue(ex.getMessage().contains("Ordem de servico nao encontrada"));
+            assertTrue(ex.getMessage().contains("Ordem de serviço não encontrada"));
         }
     }
 
@@ -213,7 +215,39 @@ class ServiceOrderUseCaseTest {
         @Mock private com.workbench.workshop.application.serviceorder.port.out.CustomerNotificationPort customerNotificationPort;
         @Mock private OrderMetricsPort metrics;
         @Mock private com.workbench.workshop.application.saga.SagaOrchestrator sagaOrchestrator;
+        @Mock private com.workbench.workshop.application.service.port.out.ServiceRepository serviceRepository;
         @InjectMocks private UpdateOrderUseCase useCase;
+
+        @Test
+        void cannotFinalizeWhileAServiceIsPending() {
+            UUID id = UUID.randomUUID();
+            ServiceOrder order = createTestOrder(id, "12345678900", "ABC1234", OrderServiceStatusEnum.EM_EXECUCAO);
+            when(serviceOrderRepository.findById(id)).thenReturn(Optional.of(order));
+            when(serviceRepository.findByIdOS(id)).thenReturn(java.util.List.of(new com.workbench.workshop.domain.service.WorkshopService(
+                    UUID.randomUUID(), "TROCA_OLEO", id, java.util.List.of())));
+
+            IllegalStateException ex = assertThrows(IllegalStateException.class,
+                    () -> useCase.execute(id, OrderServiceStatusEnum.FINALIZADA));
+
+            assertTrue(ex.getMessage().contains("1 serviço(s) não concluído(s)"));
+            verify(serviceOrderRepository, never()).save(any());
+        }
+
+        @Test
+        void finalizesWhenEveryServiceIsDone() {
+            UUID id = UUID.randomUUID();
+            ServiceOrder order = createTestOrder(id, "12345678900", "ABC1234", OrderServiceStatusEnum.EM_EXECUCAO);
+            var done = new com.workbench.workshop.domain.service.WorkshopService(UUID.randomUUID(), "TROCA_OLEO", id, java.util.List.of());
+            done.moveTo(com.workbench.workshop.domain.service.ServiceStatusEnum.DOING, java.time.LocalDateTime.now());
+            done.moveTo(com.workbench.workshop.domain.service.ServiceStatusEnum.DONE, java.time.LocalDateTime.now());
+            when(serviceOrderRepository.findById(id)).thenReturn(Optional.of(order));
+            when(serviceOrderRepository.save(any(ServiceOrder.class))).thenAnswer(i -> i.getArgument(0));
+            when(serviceRepository.findByIdOS(id)).thenReturn(java.util.List.of(done));
+
+            useCase.execute(id, OrderServiceStatusEnum.FINALIZADA);
+
+            assertEquals(OrderServiceStatusEnum.FINALIZADA, order.getStatus());
+        }
 
         @Test
         void updatesOrderStatusSuccessfully() {
@@ -229,6 +263,31 @@ class ServiceOrderUseCaseTest {
             verify(serviceOrderRepository).save(order);
             verify(notificationPort).notifyStatusChange(order);
             verify(metrics).recordTimeInStatus(eq(OrderServiceStatusEnum.RECEBIDA), any());
+        }
+
+        @Test
+        void sagaOwnedStatusIsBlockedWhenOrderHasSaga() {
+            UUID id = UUID.randomUUID();
+            ServiceOrder order = createTestOrder(id, "12345678900", "ABC1234", OrderServiceStatusEnum.PAGAMENTO_PENDENTE);
+            when(serviceOrderRepository.findById(id)).thenReturn(Optional.of(order));
+            when(sagaOrchestrator.hasSaga(id)).thenReturn(true);
+
+            // Marcar PAGO à mão numa OS com Saga pularia o pagamento.
+            assertThrows(IllegalStateException.class, () -> useCase.execute(id, OrderServiceStatusEnum.PAGO));
+            verify(serviceOrderRepository, never()).save(any());
+        }
+
+        @Test
+        void sagaOwnedStatusIsAllowedWithoutSaga() {
+            UUID id = UUID.randomUUID();
+            ServiceOrder order = createTestOrder(id, "12345678900", "ABC1234", OrderServiceStatusEnum.PAGAMENTO_PENDENTE);
+            when(serviceOrderRepository.findById(id)).thenReturn(Optional.of(order));
+            when(serviceOrderRepository.save(any(ServiceOrder.class))).thenAnswer(i -> i.getArgument(0));
+            when(sagaOrchestrator.hasSaga(id)).thenReturn(false);
+
+            useCase.execute(id, OrderServiceStatusEnum.PAGO); // modo manual (sem Saga)
+
+            assertEquals(OrderServiceStatusEnum.PAGO, order.getStatus());
         }
 
         @Test
@@ -261,7 +320,7 @@ class ServiceOrderUseCaseTest {
             IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                     () -> useCase.execute(id, null));
 
-            assertTrue(ex.getMessage().contains("Status da ordem de servico e obrigatorio"));
+            assertTrue(ex.getMessage().contains("Status da ordem de serviço é obrigatório"));
             verify(serviceOrderRepository, never()).findById(any());
         }
     }
@@ -279,7 +338,7 @@ class ServiceOrderUseCaseTest {
             when(serviceOrderRepository.findByCpfCnpj(doc)).thenReturn(List.of(
                     createTestOrder(UUID.randomUUID(), doc, "ABC1D23", OrderServiceStatusEnum.RECEBIDA)));
 
-            assertEquals(1, useCase.execute(doc).size());
+            assertEquals(1, useCase.execute(doc, Requester.staff("admin@workbench.dev")).size());
             verify(serviceOrderRepository).findByCpfCnpj(doc);
         }
 
@@ -287,7 +346,7 @@ class ServiceOrderUseCaseTest {
         void normalizesFormattedDocument() {
             when(serviceOrderRepository.findByCpfCnpj("52998224725")).thenReturn(List.of());
 
-            useCase.execute("529.982.247-25");
+            useCase.execute("529.982.247-25", Requester.staff("admin@workbench.dev"));
 
             verify(serviceOrderRepository).findByCpfCnpj("52998224725");
         }
@@ -296,8 +355,22 @@ class ServiceOrderUseCaseTest {
         void handlesNullDocument() {
             when(serviceOrderRepository.findByCpfCnpj("")).thenReturn(List.of());
 
-            assertTrue(useCase.execute(null).isEmpty());
+            assertTrue(useCase.execute(null, Requester.staff("admin@workbench.dev")).isEmpty());
             verify(serviceOrderRepository).findByCpfCnpj("");
+        }
+
+        @Test
+        void clientCannotQueryAnotherClientsDocument() {
+            assertThrows(SecurityException.class,
+                    () -> useCase.execute("11144477735", new Requester("52998224725", true)));
+            verify(serviceOrderRepository, never()).findByCpfCnpj(any());
+        }
+
+        @Test
+        void clientQueriesOwnDocument() {
+            when(serviceOrderRepository.findByCpfCnpj("52998224725")).thenReturn(List.of());
+            useCase.execute("529.982.247-25", new Requester("52998224725", true));
+            verify(serviceOrderRepository).findByCpfCnpj("52998224725");
         }
     }
 }

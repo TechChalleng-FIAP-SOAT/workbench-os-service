@@ -24,7 +24,7 @@ public record ServiceOrderResponse(
                 order.getServiceStatus(),
                 order.getListService(),
                 order.getCpfCnpj(),
-                order.getPlacaVeiculo(),
+                order.getLicensePlate(),
                 order.getRejectionReason(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()

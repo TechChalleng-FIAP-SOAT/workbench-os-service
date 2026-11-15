@@ -29,7 +29,7 @@ class JwtFilterTest {
     @BeforeEach
     void setUp() {
         key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-        filter = new JwtFilter(new JwtService(new JwtProperties(SECRET, 86400000L)));
+        filter = new JwtFilter(new JwtService(new JwtProperties(SECRET)));
         SecurityContextHolder.clearContext();
     }
 

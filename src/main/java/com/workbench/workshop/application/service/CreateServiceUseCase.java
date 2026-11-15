@@ -25,35 +25,17 @@ public class CreateServiceUseCase {
         return execute(serviceType, idOS, null, null, false);
     }
 
-    /**
-     * Cria o serviço resolvendo a mão de obra conforme a regra de default (ADR-0005):
-     * <ul>
-     *   <li>{@code useDefault=false}: usa o valor do campo; se nulo → 0.</li>
-     *   <li>{@code useDefault=true} e campo nulo: usa o default do catálogo
-     *       ({@code ServiceType}).</li>
-     *   <li>{@code useDefault=true} e campo preenchido: o campo prevalece.</li>
-     * </ul>
-     */
+    /** Cria o serviço resolvendo a mão de obra pela regra de {@link WorkshopService#resolveLabor}. */
     public WorkshopService execute(String serviceType, UUID idOS,
                                    BigDecimal laborCost, BigDecimal laborHours, boolean useDefault) {
         var type = serviceTypeRepository.findByName(serviceType)
-                .orElseThrow(() -> new RuntimeException("Tipo de serviço não encontrado na base de Serviços."));
+                .orElseThrow(() -> new UnknownServiceTypeException(serviceType));
 
-        WorkshopService newService = new WorkshopService();
-        newService.setServiceTypeName(type.getName());
-        newService.setIdOS(idOS);
-        newService.setServiceStatus(List.of(new Status(ServiceStatusEnum.TO_DO, LocalDateTime.now())));
-        newService.setLaborCost(resolve(laborCost, type.getLaborCost(), useDefault, BigDecimal.ZERO));
-        newService.setLaborHours(resolve(laborHours, type.getLaborHours(), useDefault, null));
+        WorkshopService newService = WorkshopService.create(type.getName(), idOS,
+                WorkshopService.resolveLabor(laborCost, type.getLaborCost(), useDefault, BigDecimal.ZERO),
+                WorkshopService.resolveLabor(laborHours, type.getLaborHours(), useDefault, null),
+                LocalDateTime.now());
 
         return serviceRepository.save(newService);
-    }
-
-    /** Precedência: campo preenchido vence; useDefault puxa o catálogo quando o campo é nulo. */
-    private BigDecimal resolve(BigDecimal field, BigDecimal catalogDefault, boolean useDefault, BigDecimal fallback) {
-        if (field != null) {
-            return field;
-        }
-        return useDefault ? catalogDefault : fallback;
     }
 }

@@ -12,5 +12,4 @@ import org.springframework.context.annotation.Configuration;
 @NoArgsConstructor
 public class JwtProperties {
     @Value("${jwt.secret}") private String secret;
-    @Value("${jwt.expiration}") private long expiration;
 }

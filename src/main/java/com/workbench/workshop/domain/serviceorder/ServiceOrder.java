@@ -15,38 +15,38 @@ public class ServiceOrder {
     private OrderServiceStatusEnum status;
     private List<String> listService;
     private String cpfCnpj;
-    private String placaVeiculo;
+    private String licensePlate;
     private String rejectionReason;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     protected ServiceOrder() {}
 
-    public static ServiceOrder create(String cpfCnpj, String placaVeiculo, List<String> serviceTypes) {
-        Objects.requireNonNull(cpfCnpj, "CPF/CNPJ is required");
-        Objects.requireNonNull(placaVeiculo, "Placa do veiculo is required");
+    public static ServiceOrder create(String cpfCnpj, String licensePlate, List<String> serviceTypes) {
+        Objects.requireNonNull(cpfCnpj, "CPF/CNPJ é obrigatório");
+        Objects.requireNonNull(licensePlate, "Placa do veículo é obrigatória");
         if (serviceTypes == null || serviceTypes.isEmpty()) {
-            throw new IllegalArgumentException("At least one service type is required");
+            throw new IllegalArgumentException("Informe ao menos um tipo de serviço");
         }
 
         var order = new ServiceOrder();
         order.id = UUID.randomUUID();
-        order.cpfCnpj = cpfCnpj.strip();
-        order.placaVeiculo = placaVeiculo.strip().toUpperCase();
+        order.cpfCnpj = normalizeDocument(cpfCnpj);
+        order.licensePlate = licensePlate.strip().toUpperCase();
         order.listService = List.copyOf(serviceTypes);
         order.serviceTypeName = serviceTypes.toString();
         order.status = OrderServiceStatusEnum.RECEBIDA;
         return order;
     }
 
-    public static ServiceOrder reconstitute(UUID id, String cpfCnpj, String placaVeiculo,
+    public static ServiceOrder reconstitute(UUID id, String cpfCnpj, String licensePlate,
                                              List<String> serviceTypes, String serviceTypeName,
                                              OrderServiceStatusEnum status, String rejectionReason,
                                              LocalDateTime createdAt, LocalDateTime updatedAt) {
         var order = new ServiceOrder();
         order.id = id;
         order.cpfCnpj = cpfCnpj;
-        order.placaVeiculo = placaVeiculo;
+        order.licensePlate = licensePlate;
         order.listService = serviceTypes;
         order.serviceTypeName = serviceTypeName;
         order.status = status;
@@ -57,12 +57,12 @@ public class ServiceOrder {
     }
 
     public void advanceTo(OrderServiceStatusEnum newStatus) {
-        Objects.requireNonNull(newStatus, "Target status is required");
+        Objects.requireNonNull(newStatus, "Status de destino é obrigatório");
         if (!this.status.canTransitionTo(newStatus)) {
             throw new InvalidStatusTransitionException(
-                    "Cannot transition from " + this.status.getStatus()
-                            + " to " + newStatus.getStatus()
-                            + ". Allowed transitions: " + this.status.getAllowedTransitions());
+                    "Não é possível mudar de " + this.status.getStatus()
+                            + " para " + newStatus.getStatus()
+                            + ". Transições permitidas: " + this.status.getAllowedTransitions());
         }
         this.status = newStatus;
     }
@@ -78,5 +78,10 @@ public class ServiceOrder {
 
     public String getServiceStatus() {
         return status.getStatus();
+    }
+
+    /** CPF/CNPJ só com dígitos — formato único para gravar, buscar e comparar com o token. */
+    public static String normalizeDocument(String cpfCnpj) {
+        return cpfCnpj == null ? "" : cpfCnpj.replaceAll("[^0-9]", "");
     }
 }

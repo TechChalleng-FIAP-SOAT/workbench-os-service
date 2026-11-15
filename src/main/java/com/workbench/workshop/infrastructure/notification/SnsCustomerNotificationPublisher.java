@@ -56,7 +56,7 @@ public class SnsCustomerNotificationPublisher implements CustomerNotificationPor
             String statusLabel = OrderStatusLabel.of(order.getStatus());
             Optional<String> email = clientContactPort.findEmailByDocument(order.getCpfCnpj());
             String subject = "OS Management - Atualizacao de Status: " + statusLabel;
-            String message = buildMessage(order.getCpfCnpj(), order.getPlacaVeiculo(), statusLabel);
+            String message = buildMessage(order.getCpfCnpj(), order.getLicensePlate(), statusLabel);
 
             PublishRequest.Builder request = PublishRequest.builder()
                     .topicArn(topicArn)
@@ -92,7 +92,7 @@ public class SnsCustomerNotificationPublisher implements CustomerNotificationPor
         try {
             Optional<String> email = clientContactPort.findEmailByDocument(order.getCpfCnpj());
             String subject = "OS Management - Link de Pagamento da sua Ordem de Servico";
-            String message = buildPaymentMessage(order.getCpfCnpj(), order.getPlacaVeiculo(), checkoutUrl);
+            String message = buildPaymentMessage(order.getCpfCnpj(), order.getLicensePlate(), checkoutUrl);
 
             PublishRequest.Builder request = PublishRequest.builder()
                     .topicArn(topicArn)

@@ -100,6 +100,7 @@ public class SagaReplyConsumer {
 
                 sagaOrchestrator.onEvent(
                         envelope.type(),
+                        envelope.sagaId(),
                         UUID.fromString(envelope.serviceOrderId()),
                         envelope.payload() == null ? Map.of() : envelope.payload());
 

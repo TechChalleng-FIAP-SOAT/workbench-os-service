@@ -23,7 +23,7 @@ class JwtServiceTest {
     @BeforeEach
     void setUp() {
         key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
-        jwtService = new JwtService(new JwtProperties(SECRET, 86400000L));
+        jwtService = new JwtService(new JwtProperties(SECRET));
     }
 
     private String staffToken(long expiryOffsetMillis) {

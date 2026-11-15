@@ -32,7 +32,7 @@ class ServiceOrderPersistenceAdapterTest {
                 .serviceStatus(status)
                 .listService(List.of("TROCA_OLEO"))
                 .cpfCnpj("52998224725")
-                .placaVeiculo("ABC1234")
+                .licensePlate("ABC1234")
                 .rejectionReason(null)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -53,7 +53,7 @@ class ServiceOrderPersistenceAdapterTest {
         ServiceOrder saved = adapter.save(order);
 
         assertEquals(order.getId(), saved.getId());
-        assertEquals("ABC1234", saved.getPlacaVeiculo());
+        assertEquals("ABC1234", saved.getLicensePlate());
         assertEquals(OrderServiceStatusEnum.RECEBIDA, saved.getStatus());
     }
 

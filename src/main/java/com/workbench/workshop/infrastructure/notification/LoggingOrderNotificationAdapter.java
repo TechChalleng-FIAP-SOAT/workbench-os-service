@@ -27,6 +27,6 @@ public class LoggingOrderNotificationAdapter implements OrderNotificationPort {
                 order.getServiceStatus(),
                 OrderStatusLabel.of(order.getStatus()),
                 order.getCpfCnpj(),
-                order.getPlacaVeiculo());
+                order.getLicensePlate());
     }
 }

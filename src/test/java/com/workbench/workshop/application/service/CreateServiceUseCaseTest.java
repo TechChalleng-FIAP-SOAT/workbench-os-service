@@ -49,7 +49,7 @@ class CreateServiceUseCaseTest {
         UUID idOS = UUID.randomUUID();
         when(serviceTypeRepository.findByName("Inexistente")).thenReturn(Optional.empty());
 
-        RuntimeException ex = assertThrows(RuntimeException.class,
+        UnknownServiceTypeException ex = assertThrows(UnknownServiceTypeException.class,
                 () -> useCase.execute("Inexistente", idOS));
 
         assertTrue(ex.getMessage().contains("Tipo de serviço não encontrado"));

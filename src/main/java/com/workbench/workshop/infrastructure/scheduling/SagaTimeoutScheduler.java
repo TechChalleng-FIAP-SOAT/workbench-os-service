@@ -1,5 +1,6 @@
 package com.workbench.workshop.infrastructure.scheduling;
 
+import org.springframework.beans.factory.annotation.Value;
 import com.workbench.workshop.application.saga.SagaOrchestrator;
 import lombok.RequiredArgsConstructor;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -22,7 +23,7 @@ public class SagaTimeoutScheduler {
     private final SagaOrchestrator sagaOrchestrator;
 
     /** Timeout de etapa em segundos (padrão 60s): comando sem resposta é reenviado. */
-    @org.springframework.beans.factory.annotation.Value("${saga.step-timeout-seconds:60}")
+    @Value("${saga.step-timeout-seconds:60}")
     private long stepTimeoutSeconds;
 
     @Scheduled(fixedDelayString = "${saga.timeout-poll-ms:30000}")

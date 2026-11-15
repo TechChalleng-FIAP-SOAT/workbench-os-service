@@ -98,6 +98,28 @@ public class OrderSteps {
         lastStatusCode = res.getResponse().getStatus();
     }
 
+    @Quando("o mecânico executa todos os serviços da OS")
+    public void oMecanicoExecutaTodosOsServicos() throws Exception {
+        MvcResult res = mockMvc.perform(get("/order/" + orderId + "/services").header("Authorization", bearer()))
+                .andReturn();
+        assertEquals(200, res.getResponse().getStatus());
+        for (var service : mapper.readTree(res.getResponse().getContentAsString())) {
+            for (String step : List.of("DOING", "DONE")) {
+                MvcResult moved = mockMvc.perform(patch("/order/" + orderId + "/services/" + service.get("id").asText() + "/status")
+                                .header("Authorization", bearer())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"status\":\"" + step + "\"}"))
+                        .andReturn();
+                assertEquals(200, moved.getResponse().getStatus(), "serviço deveria ir para " + step);
+            }
+        }
+    }
+
+    @Então("a transição é recusada por conflito")
+    public void aTransicaoERecusadaPorConflito() {
+        assertEquals(409, lastStatusCode, "esperava 409 ao finalizar com serviço pendente");
+    }
+
     @Então("a OS tem status {string}")
     public void aOsTemStatus(String status) throws Exception {
         verificaStatusAtual(status);

@@ -22,7 +22,7 @@ class ClientContactAdaptersTest {
 
     private final CustomerClientProperties props = props("http://customer");
     private final ServiceTokenProvider serviceTokenProvider =
-            new ServiceTokenProvider(new JwtProperties("akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa", 3600000L));
+            new ServiceTokenProvider(new JwtProperties("akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa"));
 
     private static CustomerClientProperties props(String url) {
         var p = new CustomerClientProperties();
