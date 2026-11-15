@@ -123,6 +123,14 @@ reverte o que foi efetivado e precisa ser desfeito para manter consistência*):
 
 ---
 
+## Por que este banco
+
+**PostgreSQL**, porque a OS é uma máquina de estados com regras que o banco garante: transição de status, serviços da OS ligados a ela e o estado da Saga com **trava otimista** (`version`), que impede duas decisões simultâneas de gravarem as duas. Schema versionado por Flyway.
+
+As demais decisões (MongoDB no execution, Saga orquestrada, SNS/SQS, EKS, Lambda…) estão respondidas uma a uma em `workbench-technical-documentation/01 - Arquitetura/Decisoes de Arquitetura.md`, com links para as ADRs.
+
+---
+
 ## Arquitetura da aplicação (hexagonal)
 
 Arquitetura **Hexagonal (Ports & Adapters)**: o domínio não depende de frameworks.
@@ -258,7 +266,7 @@ Manifests em `k8s/` (`namespace`, `configmap`, `secret`, `app`, `hpa`). O deploy
 automatizado pelo pipeline (job `deploy-aws`, quando `USE_AWS=true`), que roda
 `aws eks update-kubeconfig --name workbench-platform-<branch>` e aplica os manifests
 no namespace `os-service`. Provisionar o cluster/credenciais AWS é pré-requisito
-(ver `workbench-k8s-terraform` e `PENDENCIAS.md`).
+(ver `workbench-k8s-terraform` e o guia `workbench-technical-documentation/09 - Operacao/Deploy na AWS.md`).
 
 O que os manifests garantem:
 - **Rede:** o Service é um **NLB interno** (`aws-load-balancer-internal`), alcançável só de dentro da VPC. O tráfego de fora entra pelo API Gateway (VPC Link + authorizer JWT); Swagger e actuator não ficam na internet. Se o Service já existia como LB público, o pipeline o recria uma vez (o esquema de um LB não muda depois de criado). Uma `NetworkPolicy` deixa entrar só a porta 8080 (vale com NetworkPolicy ligada no VPC CNI).

@@ -210,6 +210,19 @@ jobs:
           esac
           kubectl apply -f k8s/namespace.yaml
           kubectl apply -f k8s/configmap.yaml
+          # Valores que dependem da conta, do ambiente e do commit (nada disso fica no
+          # repositório). A versão do Datadog é a tag da imagem, para comparar deploys.
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          DD_VERSION_TAG="${IMAGE##*:}"
+          kubectl create configmap os-service-runtime -n os-service \
+            --from-literal DD_ENV="${DD_ENV_TAG}" \
+            --from-literal DD_VERSION="${DD_VERSION_TAG}" \
+            --from-literal MESSAGING_ENABLED="true" \
+            --from-literal AWS_REGION="${AWS_REGION}" \
+            --from-literal ORDER_EVENTS_TOPIC_ARN="arn:aws:sns:${AWS_REGION}:${ACCOUNT_ID}:workbench-order-events" \
+            --from-literal SAGA_REPLIES_QUEUE_URL="https://sqs.${AWS_REGION}.amazonaws.com/${ACCOUNT_ID}/workbench-os-saga-replies-queue" \
+            --from-literal NOTIFICATIONS_TOPIC_ARN="arn:aws:sns:${AWS_REGION}:${ACCOUNT_ID}:workbench-os-notifications" \
+            --dry-run=client -o yaml | kubectl apply -f -
           # Secret com os valores reais (no lugar do k8s/secret.yaml, que só tem
           # placeholders). Vem depois do ConfigMap no envFrom, então as chaves daqui
           # prevalecem sobre as do ConfigMap.
@@ -228,7 +241,9 @@ jobs:
           fi
           # A imagem do commit entra no manifesto antes do apply: um rollout só, sem passar
           # pelo placeholder REPLACE_IMAGE.
-          sed "s#REPLACE_IMAGE#${IMAGE}#" k8s/app.yaml | kubectl apply -f -
+          sed -e "s#REPLACE_IMAGE#${IMAGE}#" \
+              -e "s#tags.datadoghq.com/version: \"1.0.0\"#tags.datadoghq.com/version: \"${DD_VERSION_TAG}\"#" \
+              k8s/app.yaml | kubectl apply -f -
           kubectl apply -f k8s/hpa.yaml
           # A tag env das métricas kubernetes.* vem da label tags.datadoghq.com/env
           # do pod (não do DD_ENV do container). Sem ela o widget de CPU/memória

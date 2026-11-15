@@ -40,6 +40,10 @@ spec:
                 name: os-service-config
             - secretRef:
                 name: os-service-secret
+            # Gerado pelo pipeline no deploy: ambiente e versão do Datadog e, nos serviços
+            # da Saga, a mensageria (MESSAGING_ENABLED, tópicos e filas desta conta).
+            - configMapRef:
+                name: os-service-runtime
           env:
             - name: DD_AGENT_HOST
               valueFrom:
