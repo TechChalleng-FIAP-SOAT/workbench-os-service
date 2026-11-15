@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Workbench - OS Service",
-    "description": "Collection do microsserviço de Ordem de Serviço (orquestrador da Saga). Cria OS, registra diagnóstico e decide o orçamento (aprovar/recusar). Variáveis: baseUrl, token (JWT com role ADMIN/TECHNICIAN), orderId.",
+    "description": "Collection do microsserviço de Ordem de Serviço (orquestrador da Saga). Cria OS, registra diagnóstico e decide o orçamento (aprovar/recusar). Variáveis: baseUrl, token (JWT com role ADMIN/TECHNICIAN), orderId. baseUrl: http://localhost:8080 (serviço direto, compose local) ou http://localhost:8000 (gateway local). Na AWS os serviços têm NLB interno: use a invoke_url do API Gateway como baseUrl e o token do POST /auth/login.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

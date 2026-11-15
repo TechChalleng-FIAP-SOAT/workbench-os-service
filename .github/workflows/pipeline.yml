@@ -31,7 +31,7 @@ jobs:
       - name: Conferir cópia do contrato da Saga (fonte única no workbench-messaging)
         run: |
           url=https://raw.githubusercontent.com/TechChalleng-FIAP-SOAT/workbench-messaging/main/contracts/saga-messages.json
-          if ! curl -fsSL "$url" -o /tmp/saga-messages.json; then
+          if ! curl --proto "=https" --tlsv1.2 -fsSL "$url" -o /tmp/saga-messages.json; then
             echo "::warning::Contrato canônico ainda não publicado na main do workbench-messaging — check pulado."
             exit 0
           fi
