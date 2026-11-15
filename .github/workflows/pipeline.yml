@@ -128,7 +128,6 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/os-service:latest
             ${{ steps.meta.outputs.image }}
           cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/os-service:buildcache
           cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/os-service:buildcache,mode=max
@@ -221,16 +220,23 @@ jobs:
             --from-literal JWT_SECRET="${JWT_SECRET}" \
             --from-literal DD_API_KEY="${DD_API_KEY}" \
             --dry-run=client -o yaml | kubectl apply -f -
-          kubectl apply -f k8s/app.yaml
+          # O LB do Service passou a ser NLB interno (k8s/app.yaml). O esquema de um LB não
+          # muda depois de criado, então um Service antigo (público) é recriado uma vez.
+          if kubectl get service os-service -n os-service >/dev/null 2>&1 && \
+             [ "$(kubectl get service os-service -n os-service -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-internal}')" != "true" ]; then
+            kubectl delete service os-service -n os-service
+          fi
+          # A imagem do commit entra no manifesto antes do apply: um rollout só, sem passar
+          # pelo placeholder REPLACE_IMAGE.
+          sed "s#REPLACE_IMAGE#${IMAGE}#" k8s/app.yaml | kubectl apply -f -
           kubectl apply -f k8s/hpa.yaml
           # A tag env das métricas kubernetes.* vem da label tags.datadoghq.com/env
           # do pod (não do DD_ENV do container). Sem ela o widget de CPU/memória
           # (env:$env) fica vazio. Injeta a mesma env mapeada acima.
           kubectl patch deployment os-service -n os-service --type merge \
             -p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"tags.datadoghq.com/env\":\"${DD_ENV_TAG}\"}}}}}"
-      - name: Atualizar imagem do Deployment
+      - name: Aguardar o rollout
         run: |
-          kubectl set image deployment/os-service os-service="${IMAGE}" -n os-service
           kubectl rollout status deployment/os-service -n os-service --timeout=300s
 
   # ---------------------------------------------------------------------------

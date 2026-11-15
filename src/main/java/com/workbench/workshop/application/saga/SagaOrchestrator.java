@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -160,7 +161,8 @@ public class SagaOrchestrator {
     @Transactional
     public void onBudgetRejected(UUID osId, String reason) {
         SagaState saga = requireSaga(osId);
-        ServiceOrder order = serviceOrderRepository.findById(osId).orElseThrow();
+        ServiceOrder order = serviceOrderRepository.findById(osId)
+                .orElseThrow(() -> new NoSuchElementException("Ordem de serviço não encontrada: " + osId));
         order.reject(reason);
         serviceOrderRepository.save(order);
         saga.markCompensating(reason == null ? "orçamento recusado" : reason);
@@ -299,7 +301,8 @@ public class SagaOrchestrator {
     // passar por EM_DIAGNOSTICO antes de AGUARDANDO_APROVACAO. O orquestrador avança
     // os dois passos de forma idempotente (só avança o que ainda não foi avançado).
     private void onBudgetGenerated(SagaState saga, UUID osId) {
-        ServiceOrder order = serviceOrderRepository.findById(osId).orElseThrow();
+        ServiceOrder order = serviceOrderRepository.findById(osId)
+                .orElseThrow(() -> new NoSuchElementException("Ordem de serviço não encontrada: " + osId));
         if (order.getStatus() == OrderServiceStatusEnum.RECEBIDA) {
             order.advanceTo(OrderServiceStatusEnum.EM_DIAGNOSTICO);
         }
@@ -389,31 +392,44 @@ public class SagaOrchestrator {
         sagaStateRepository.save(saga);
     }
 
+    /** OS com comando pendente cujo último envio é anterior a {@code olderThan}. */
+    @Transactional(readOnly = true)
+    public List<UUID> findTimedOut(LocalDateTime olderThan) {
+        return sagaStateRepository.findPendingOlderThan(olderThan).stream()
+                .map(SagaState::getServiceOrderId)
+                .toList();
+    }
+
     /**
-     * Reenvia comandos pendentes cujo último envio passou do timeout (comando/resposta
-     * perdido). Esgotadas as tentativas de uma etapa compensável, aciona a compensação.
-     * Chamado por um job agendado (com lock distribuído) — ver {@code SagaTimeoutScheduler}.
+     * Reenvia o comando pendente de uma OS cujo último envio passou do timeout (comando ou
+     * resposta perdidos). Esgotadas as tentativas de uma etapa compensável, aciona a
+     * compensação. Uma transação por OS: um conflito ou erro numa Saga não desfaz o reenvio
+     * das outras. Chamado por um job agendado (com lock distribuído) — ver
+     * {@code SagaTimeoutScheduler}.
      *
-     * @param olderThan limite: só sagas com {@code lastCommandAt} anterior a isso
+     * @param olderThan limite: só reenvia se o último envio ainda for anterior a isso
      */
     @Transactional
-    public void resendTimedOut(LocalDateTime olderThan) {
-        for (SagaState saga : sagaStateRepository.findPendingOlderThan(olderThan)) {
-            UUID osId = saga.getServiceOrderId();
-            if (saga.getRetryCount() >= maxRetries) {
-                // Esgotou: se a etapa pendente é compensável (reserva ainda não baixada),
-                // compensa; senão apenas marca falha (nada a reverter).
-                log.warn("Timeout: comando {} esgotou {} tentativas para OS {}",
-                        saga.getPendingCommand(), maxRetries, osId);
-                compensateOnTimeout(saga, osId);
-                continue;
-            }
-            saga.markRetry();
-            sagaStateRepository.save(saga);
-            log.warn("Timeout: reenviando {} (tentativa {} de {}) para OS {}",
-                    saga.getPendingCommand(), saga.getRetryCount(), maxRetries, osId);
-            send(saga, saga.getPendingCommand(), readJson(saga.getPendingPayloadJson()));
+    public void resendTimedOut(UUID osId, LocalDateTime olderThan) {
+        SagaState saga = sagaStateRepository.findByServiceOrderId(osId).orElse(null);
+        // A resposta pode ter chegado entre a busca e agora.
+        if (saga == null || !saga.hasPendingCommand() || saga.getLastCommandAt() == null
+                || !saga.getLastCommandAt().isBefore(olderThan)) {
+            return;
         }
+        if (saga.getRetryCount() >= maxRetries) {
+            // Esgotou: se a etapa pendente é compensável (reserva ainda não baixada),
+            // compensa; senão apenas registra a falha (nada a reverter).
+            log.warn("Timeout: comando {} esgotou {} tentativas para OS {}",
+                    saga.getPendingCommand(), maxRetries, osId);
+            compensateOnTimeout(saga, osId);
+            return;
+        }
+        saga.markRetry();
+        sagaStateRepository.save(saga);
+        log.warn("Timeout: reenviando {} (tentativa {} de {}) para OS {}",
+                saga.getPendingCommand(), saga.getRetryCount(), maxRetries, osId);
+        send(saga, saga.getPendingCommand(), readJson(saga.getPendingPayloadJson()));
     }
 
     // Decide a compensação quando uma etapa esgota as tentativas por timeout.
@@ -438,7 +454,8 @@ public class SagaOrchestrator {
     }
 
     private void advanceOrder(UUID osId, OrderServiceStatusEnum target) {
-        ServiceOrder order = serviceOrderRepository.findById(osId).orElseThrow();
+        ServiceOrder order = serviceOrderRepository.findById(osId)
+                .orElseThrow(() -> new NoSuchElementException("Ordem de serviço não encontrada: " + osId));
         order.advanceTo(target);
         serviceOrderRepository.save(order);
     }

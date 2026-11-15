@@ -55,6 +55,14 @@ class SagaOrchestratorTest {
                 LocalDateTime.now(), LocalDateTime.now());
     }
 
+    /** O que o SagaTimeoutScheduler faz: uma chamada (transação) por OS vencida. */
+    private void resendAllTimedOut() {
+        LocalDateTime threshold = LocalDateTime.now().minusSeconds(60);
+        for (UUID id : orchestrator.findTimedOut(threshold)) {
+            orchestrator.resendTimedOut(id, threshold);
+        }
+    }
+
     private SagaState sagaAt(SagaStep step) {
         return SagaState.reconstitute(1L, osId, step, List.of(), null,
                 LocalDateTime.now(), LocalDateTime.now());
@@ -346,8 +354,9 @@ class SagaOrchestratorTest {
                 List.of("RESERVA"), null, "ComandoGerarOrcamento", "{\"parts\":[]}", 0,
                 LocalDateTime.now().minusMinutes(5), LocalDateTime.now(), LocalDateTime.now());
         when(sagaStateRepository.findPendingOlderThan(any())).thenReturn(List.of(saga));
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
 
-        orchestrator.resendTimedOut(LocalDateTime.now().minusSeconds(60));
+        resendAllTimedOut();
 
         verify(commandPort).send(eq("ComandoGerarOrcamento"), eq(osId), eq(osId), anyMap());
         verify(sagaStateRepository).save(argThat(s -> s.getRetryCount() == 1));
@@ -359,8 +368,9 @@ class SagaOrchestratorTest {
                 List.of("RESERVA"), null, "ComandoGerarOrcamento", "{\"parts\":[]}", 3,
                 LocalDateTime.now().minusMinutes(5), LocalDateTime.now(), LocalDateTime.now());
         when(sagaStateRepository.findPendingOlderThan(any())).thenReturn(List.of(saga));
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
 
-        orchestrator.resendTimedOut(LocalDateTime.now().minusSeconds(60));
+        resendAllTimedOut();
 
         verify(commandPort).send(eq("ComandoLiberarReserva"), eq(osId), eq(osId), anyMap());
         verify(sagaStateRepository).save(argThat(s -> s.getStep() == SagaStep.COMPENSANDO));
@@ -377,8 +387,9 @@ class SagaOrchestratorTest {
         SagaState saga = exhausted(SagaStep.AGUARDANDO_PAGAMENTO, "ComandoCobrarPagamento");
         when(sagaStateRepository.findPendingOlderThan(any())).thenReturn(List.of(saga));
         when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
 
-        orchestrator.resendTimedOut(LocalDateTime.now().minusSeconds(60));
+        resendAllTimedOut();
 
         assertEquals(SagaStep.AGUARDANDO_PAGAMENTO, saga.getStep());
         assertFalse(saga.hasPendingCommand());
@@ -399,8 +410,9 @@ class SagaOrchestratorTest {
     void confirmReservationTimeoutKeepsSagaAwaitingPayment() {
         SagaState saga = exhausted(SagaStep.AGUARDANDO_PAGAMENTO, "ComandoConfirmarReserva");
         when(sagaStateRepository.findPendingOlderThan(any())).thenReturn(List.of(saga));
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
 
-        orchestrator.resendTimedOut(LocalDateTime.now().minusSeconds(60));
+        resendAllTimedOut();
 
         assertEquals(SagaStep.AGUARDANDO_PAGAMENTO, saga.getStep());
         assertFalse(saga.hasPendingCommand());
@@ -421,11 +433,23 @@ class SagaOrchestratorTest {
     void failedSagaLeavesNothingPendingForTheTimeoutJob() {
         SagaState saga = exhausted(SagaStep.COMPENSANDO, "ComandoLiberarReserva");
         when(sagaStateRepository.findPendingOlderThan(any())).thenReturn(List.of(saga));
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
 
-        orchestrator.resendTimedOut(LocalDateTime.now().minusSeconds(60));
+        resendAllTimedOut();
 
         assertEquals(SagaStep.FALHOU, saga.getStep());
         assertFalse(saga.hasPendingCommand());
+    }
+
+    @Test
+    void timedOutSagaThatGotItsReplyMeanwhileIsNotResent() {
+        SagaState answered = sagaAt(SagaStep.AGUARDANDO_ORCAMENTO); // sem comando pendente
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(answered));
+
+        orchestrator.resendTimedOut(osId, LocalDateTime.now());
+
+        verify(commandPort, never()).send(any(), any(), any(), anyMap());
+        verify(sagaStateRepository, never()).save(any());
     }
 
     @Test

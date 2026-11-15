@@ -112,7 +112,8 @@ public class SagaReplyConsumer {
             }
         } catch (Exception e) {
             // Não apaga a mensagem: o SQS reentrega e, após maxReceiveCount, vai p/ DLQ.
-            log.error("Failed to process saga reply; leaving it for redrive/DLQ. body={}", message.body(), e);
+            // Sem o corpo no log: o payload pode levar dados pessoais.
+            log.error("Failed to process saga reply; leaving it for redrive/DLQ. sqsMessageId={}", message.messageId(), e);
         }
     }
 

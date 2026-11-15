@@ -6,7 +6,8 @@ metadata:
   labels:
     app: os-service
 spec:
-  replicas: 1
+  # Sem replicas: quem decide é o HPA (k8s/hpa.yaml). Com o campo aqui, cada deploy
+  # voltaria o número de pods para 1.
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -22,7 +23,8 @@ spec:
         tags.datadoghq.com/service: os-service
         tags.datadoghq.com/version: "1.0.0"
       annotations:
-        admission.datadoghq.com/java-lib.version: "latest"
+        # Versão fixa do dd-java-agent injetado (reprodutível; atualize de propósito).
+        admission.datadoghq.com/java-lib.version: "v1.68.2"
         ad.datadoghq.com/os-service.logs: '[{"source":"java","service":"os-service"}]'
         ad.datadoghq.com/os-service.checks: '{"http_check":{"init_config":{},"instances":[{"name":"os-service-health","url":"http://%%host%%:8080/actuator/health","timeout":5}]}}'
     spec:
@@ -51,22 +53,29 @@ spec:
               value: "true"
             - name: DD_PROFILING_ENABLED
               value: "true"
+          # A subida (até 5 min) fica com o startupProbe; liveness e readiness só
+          # começam depois dele, sem atraso fixo.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: http
-            initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 10
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: http
-            initialDelaySeconds: 60
             periodSeconds: 20
             timeoutSeconds: 5
-            failureThreshold: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: 250m
@@ -74,6 +83,23 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+          # Sem root, sem escalar privilégio, sem capabilities e com o sistema de arquivos
+          # somente leitura; só /tmp (logs, Tomcat, profiler) é gravável. Fica no
+          # container, não no pod, para não afetar o init container do Datadog.
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -82,6 +108,12 @@ metadata:
   namespace: os-service
   labels:
     app: os-service
+  annotations:
+    # NLB INTERNO: só alcançável de dentro da VPC. O tráfego de fora entra pelo API
+    # Gateway (VPC Link + authorizer JWT); a Lambda chama o customer-service por aqui.
+    # O workbench-gateway encontra este NLB pela tag kubernetes.io/service-name.
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
 spec:
   type: LoadBalancer
   selector:
@@ -90,3 +122,33 @@ spec:
     - name: http
       port: 8080
       targetPort: http
+---
+# Numa troca de nó ou atualização do cluster, no máximo 1 pod sai por vez. Com 1 réplica
+# o despejo continua permitido (não trava o dreno do nó).
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: os-service
+  namespace: os-service
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: os-service
+---
+# Só a porta da aplicação recebe tráfego. Vale quando o VPC CNI do EKS está com
+# NetworkPolicy ligada (enableNetworkPolicy); sem isso, o recurso é ignorado.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: os-service-ingress
+  namespace: os-service
+spec:
+  podSelector:
+    matchLabels:
+      app: os-service
+  policyTypes: ["Ingress"]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080

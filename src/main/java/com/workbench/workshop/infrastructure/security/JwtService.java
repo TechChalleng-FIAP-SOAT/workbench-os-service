@@ -1,6 +1,7 @@
 package com.workbench.workshop.infrastructure.security;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,7 +34,7 @@ public class JwtService {
     public Optional<Claims> tryParseClaims(String token) {
         try {
             return Optional.of(getClaims(token));
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
             log.debug("Invalid JWT token: {}", e.getMessage());
             return Optional.empty();
         }
@@ -46,7 +46,6 @@ public class JwtService {
     }
 
     /** Lê as roles das claims; usado para popular as authorities do contexto de segurança. */
-    @SuppressWarnings("unchecked")
     public List<String> extractRoles(Claims claims) {
         Object roles = claims.get("roles");
         if (roles instanceof List<?> list) {
@@ -55,9 +54,6 @@ public class JwtService {
         return List.of();
     }
 
-    public boolean isExpired(Claims claims) {
-        return claims.getExpiration() != null && claims.getExpiration().before(new Date());
-    }
 
     private Claims getClaims(String token) {
         return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();

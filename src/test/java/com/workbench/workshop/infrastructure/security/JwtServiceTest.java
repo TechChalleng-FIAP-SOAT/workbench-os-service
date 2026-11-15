@@ -57,7 +57,6 @@ class JwtServiceTest {
         assertEquals("admin@system.com", claims.get().getSubject());
         assertFalse(jwtService.isClientToken(claims.get()));
         assertEquals(List.of("ADMIN"), jwtService.extractRoles(claims.get()));
-        assertFalse(jwtService.isExpired(claims.get()));
     }
 
     @Test
@@ -74,14 +73,9 @@ class JwtServiceTest {
     }
 
     @Test
-    void detectsExpiredToken() {
-        Claims claims = jwtService.tryParseClaims(staffToken(-1000L)).orElse(null);
-        // Token já expirado pode falhar o parse; se passou, isExpired deve indicar true.
-        if (claims != null) {
-            assertTrue(jwtService.isExpired(claims));
-        } else {
-            assertTrue(true);
-        }
+    void rejectsExpiredToken() {
+        // O parser já valida a expiração: token vencido não passa.
+        assertTrue(jwtService.tryParseClaims(staffToken(-1000L)).isEmpty());
     }
 
     @Test

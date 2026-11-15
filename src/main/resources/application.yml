@@ -1,10 +1,16 @@
 spring:
   application:
     name: os-service
+  # Mais de uma thread para os @Scheduled: o consumidor SQS faz long polling e não pode
+  # dividir a única thread padrão com os outros jobs (timeout da Saga, consulta ao gateway).
+  task:
+    scheduling:
+      pool:
+        size: ${SCHEDULING_POOL_SIZE:4}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/os_service}
     username: ${SPRING_DATASOURCE_USERNAME:dbadmin}
-    password: ${SPRING_DATASOURCE_PASSWORD:senha-super-segura}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
       max-lifetime: 1740000
       keepalive-time: 300000
@@ -55,7 +61,7 @@ server:
   port: 8080
 
 jwt:
-  secret: ${JWT_SECRET:akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa}
+  secret: ${JWT_SECRET}
 
 # -----------------------------------------------------------------------------
 # Mensageria (SNS/SQS) — Fase 4, Etapa 2.
@@ -81,3 +87,5 @@ customer:
   validation:
     enabled: ${CUSTOMER_VALIDATION_ENABLED:false}
     base-url: ${CUSTOMER_SERVICE_URL:}
+    connect-timeout: ${CUSTOMER_CONNECT_TIMEOUT:2s}
+    read-timeout: ${CUSTOMER_READ_TIMEOUT:5s}

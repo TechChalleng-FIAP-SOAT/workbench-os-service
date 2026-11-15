@@ -43,7 +43,6 @@ public class JwtFilter extends OncePerRequestFilter {
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
                 String token = authHeader.substring(7);
                 jwtService.tryParseClaims(token)
-                        .filter(claims -> !jwtService.isExpired(claims))
                         .ifPresent(this::authenticate);
             }
             var authentication = SecurityContextHolder.getContext().getAuthentication();

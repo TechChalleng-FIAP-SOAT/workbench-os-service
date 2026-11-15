@@ -209,7 +209,7 @@ unit-test ──▶ code-analysis ──▶ build ──▶ docker-build-push �
 
 | Tecnologia | Finalidade |
 |---|---|
-| Java 21 + Spring Boot 4.0.5 | Framework web e DI |
+| Java 21 + Spring Boot 4.0.9 | Framework web e DI |
 | PostgreSQL 16 + Flyway | Banco próprio (SQL) + migrations |
 | AWS SNS/SQS (SDK v2) | Mensageria da Saga (comandos/eventos) + DLQ |
 | ShedLock (JDBC) | Lock distribuído dos jobs agendados (HPA) |
@@ -226,21 +226,28 @@ unit-test ──▶ code-analysis ──▶ build ──▶ docker-build-push �
 Pré-requisitos: Java 21, Docker (para Testcontainers), um PostgreSQL acessível.
 
 ```bash
-./mvnw spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
+
+> **Sem valores padrão para segredos.** Fora do perfil `local` (`JWT_SECRET` e a senha do banco) são
+> obrigatórios: sem eles o serviço não sobe. O perfil `local` (`application-local.yml`)
+> traz os valores de desenvolvimento e é ativado pelo compose do `workbench-messaging`.
 
 O Flyway cria o schema na subida. Configuração relevante (env):
 
 | Variável | Default | Descrição |
 |---|---|---|
-| `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` | Postgres local | Banco próprio da OS |
-| `JWT_SECRET` | valor de dev | Segredo HS256 compartilhado (validação de token e token de serviço) |
+| `SPRING_DATASOURCE_URL` / `_USERNAME` | Postgres local | Banco próprio da OS |
+| `SPRING_DATASOURCE_PASSWORD` | — (obrigatório; dev no perfil `local`) | Senha do banco |
+| `JWT_SECRET` | — (obrigatório; dev no perfil `local`) | Segredo HS256 compartilhado (validação de token e token de serviço) |
 | `MESSAGING_ENABLED` | `false` | Liga SNS/SQS; `false` usa adapters no-op (sem broker) |
 | `ORDER_EVENTS_TOPIC_ARN` | — | Tópico onde o orquestrador publica os comandos da Saga |
 | `SAGA_REPLIES_QUEUE_URL` | — | Fila de onde o orquestrador lê as respostas da Saga |
 | `AWS_ENDPOINT` | — | vazio = AWS real; `http://localhost:4566` = LocalStack |
 | `CUSTOMER_VALIDATION_ENABLED` | `false` | Valida cliente/veículo no Customer via REST; também habilita a busca do e-mail do cliente para a notificação |
 | `CUSTOMER_SERVICE_URL` | — | URL base do Customer Service |
+| `CUSTOMER_CONNECT_TIMEOUT` / `CUSTOMER_READ_TIMEOUT` | `2s` / `5s` | Timeouts das chamadas ao Customer Service (um Customer travado não prende a requisição) |
+| `SCHEDULING_POOL_SIZE` | `4` | Threads dos jobs `@Scheduled` (consumidor SQS e timeout da Saga não dividem uma thread só) |
 | `NOTIFICATIONS_TOPIC_ARN` | — | Tópico SNS de notificação de status ao cliente (e-mail). Sem ele, a notificação é ignorada |
 
 ---
@@ -252,6 +259,12 @@ automatizado pelo pipeline (job `deploy-aws`, quando `USE_AWS=true`), que roda
 `aws eks update-kubeconfig --name workbench-platform-<branch>` e aplica os manifests
 no namespace `os-service`. Provisionar o cluster/credenciais AWS é pré-requisito
 (ver `workbench-k8s-terraform` e `PENDENCIAS.md`).
+
+O que os manifests garantem:
+- **Rede:** o Service é um **NLB interno** (`aws-load-balancer-internal`), alcançável só de dentro da VPC. O tráfego de fora entra pelo API Gateway (VPC Link + authorizer JWT); Swagger e actuator não ficam na internet. Se o Service já existia como LB público, o pipeline o recria uma vez (o esquema de um LB não muda depois de criado). Uma `NetworkPolicy` deixa entrar só a porta 8080 (vale com NetworkPolicy ligada no VPC CNI).
+- **Imagem:** o pipeline troca o `REPLACE_IMAGE` do `app.yaml` pela tag do commit antes do `kubectl apply` (um rollout por deploy). Não há tag `:latest`; o `dd-java-agent` injetado pelo Datadog tem versão fixa (`v1.68.2`).
+- **Pods:** usuário não-root (UID 10001), sem escalar privilégio, sem capabilities, sistema de arquivos somente leitura (só `/tmp` gravável), `seccomp` padrão. A subida tem um `startupProbe` (até 5 min); liveness e readiness começam depois. A JVM usa até 75% da memória do container (`-XX:MaxRAMPercentage=75.0`).
+- **Escala:** o número de réplicas é só do HPA (o `Deployment` não fixa `replicas`), e um `PodDisruptionBudget` tira no máximo 1 pod por vez numa troca de nó.
 
 ---
 
@@ -331,7 +344,7 @@ no namespace `os-service`. Provisionar o cluster/credenciais AWS é pré-requisi
   campos obrigatórios dos comandos que o orquestrador publica e se ele aceita os eventos de
   exemplo do contrato (`src/test/resources/contracts/saga-messages.json`, cópia da fonte
   única em `workbench-messaging/contracts` — sincronize com `sync-saga-contract.sh`).
-- Cobertura atual (medida em 2026-11-11): **89,8% de linhas** e 72,0% de branches. O relatório fica em `target/site/jacoco/index.html`.
+- Cobertura atual (medida em 2026-11-15): **89,8% de linhas** e 73,7% de branches. O relatório fica em `target/site/jacoco/index.html`.
 - Evidência por execução do CI: artefato `jacoco-report` do job `unit-test` (relatório HTML) e o Quality Gate do SonarCloud no job `code-analysis`.
 
 ---
