@@ -150,6 +150,9 @@ jobs:
       DB_USERNAME_OS: ${{ secrets.DB_USERNAME_OS || 'os_service' }}
       DB_PASSWORD_OS: ${{ secrets.DB_PASSWORD_OS }}
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      # Opcional: remetente verificado no SES. Com ele, o e-mail ao cliente sai pelo SES, direto
+      # ao endereço do cliente. Sem ele, segue pelo tópico SNS (o e-mail vai para o inscrito).
+      SES_SENDER_EMAIL: ${{ secrets.SES_SENDER_EMAIL }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Validar secrets obrigatórios
@@ -214,7 +217,15 @@ jobs:
           # repositório). A versão do Datadog é a tag da imagem, para comparar deploys.
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           DD_VERSION_TAG="${IMAGE##*:}"
+          # Canal do e-mail ao cliente: SES só com remetente configurado (o serviço não sobe
+          # com ses e sem remetente); sem ele, continua no tópico SNS.
+          if [ -n "${SES_SENDER_EMAIL}" ]; then
+            NOTIFICATION_ARGS=(--from-literal NOTIFICATION_CHANNEL="ses" --from-literal SES_SENDER_EMAIL="${SES_SENDER_EMAIL}")
+          else
+            NOTIFICATION_ARGS=(--from-literal NOTIFICATION_CHANNEL="sns")
+          fi
           kubectl create configmap os-service-runtime -n os-service \
+            "${NOTIFICATION_ARGS[@]}" \
             --from-literal DD_ENV="${DD_ENV_TAG}" \
             --from-literal DD_VERSION="${DD_VERSION_TAG}" \
             --from-literal MESSAGING_ENABLED="true" \

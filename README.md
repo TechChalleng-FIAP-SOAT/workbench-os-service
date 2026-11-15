@@ -42,8 +42,10 @@ Workbench (Tech Challenge — FIAP Pós Tech, Fase 4).
 - Catálogo de tipos de serviço com custo de mão de obra (editável via API)
 - Consulta de status, listagem priorizada e **histórico** por documento
 - **Notificação de status ao cliente** por e-mail (paridade com o monólito): a cada
-  mudança de status, publica uma mensagem formatada num tópico SNS dedicado; o e-mail
-  do cliente é resolvido no Customer Service por REST
+  mudança de status, envia uma mensagem formatada. O canal é escolhido por configuração:
+  tópico SNS (padrão; o e-mail vai para quem está inscrito nele) ou **Amazon SES**, que
+  envia direto ao e-mail do cliente, resolvido no Customer Service por REST
+  (ver [SNS × SES](#e-mail-ao-cliente-sns--ses))
 - **Monitoring**: relatório de tempo médio de execução dos serviços
 
 Fluxo (máquina de estados — ADR-0005):
@@ -256,7 +258,23 @@ O Flyway cria o schema na subida. Configuração relevante (env):
 | `CUSTOMER_SERVICE_URL` | — | URL base do Customer Service |
 | `CUSTOMER_CONNECT_TIMEOUT` / `CUSTOMER_READ_TIMEOUT` | `2s` / `5s` | Timeouts das chamadas ao Customer Service (um Customer travado não prende a requisição) |
 | `SCHEDULING_POOL_SIZE` | `4` | Threads dos jobs `@Scheduled` (consumidor SQS e timeout da Saga não dividem uma thread só) |
-| `NOTIFICATIONS_TOPIC_ARN` | — | Tópico SNS de notificação de status ao cliente (e-mail). Sem ele, a notificação é ignorada |
+| `NOTIFICATIONS_TOPIC_ARN` | — | Tópico SNS de notificação de status ao cliente (e-mail). Sem ele, a notificação é ignorada. Só vale no canal `sns` |
+| `NOTIFICATION_CHANNEL` | `sns` | Canal do e-mail ao cliente: `sns` (publica no tópico) ou `ses` (envia direto ao e-mail do cliente) |
+| `SES_SENDER_EMAIL` | — | Remetente verificado no SES. **Obrigatório com `NOTIFICATION_CHANNEL=ses`**: sem ele o serviço não sobe |
+
+### E-mail ao cliente: SNS × SES
+
+| | `sns` (padrão) | `ses` |
+|---|---|---|
+| Para quem vai | **Para quem estiver inscrito no tópico** (um endereço fixo, `notification_email` do Terraform). O e-mail do cliente vai só como atributo da mensagem, sem filtro | Para o **e-mail cadastrado do cliente** no Customer Service |
+| Cliente sem e-mail | Publica mesmo assim | Não envia e registra no log |
+| Infra | Tópico + assinatura | Remetente verificado no SES (`workbench-messaging/ses.tf`) e permissão `ses:SendEmail` nos nós (`workbench-k8s-terraform`) |
+
+O canal SES tem um limite que o código não resolve: uma conta nova do SES está em **sandbox**, onde só
+se envia de remetente verificado **para destinatário verificado**. Para mandar a qualquer cliente é
+preciso pedir ao SES o acesso à produção (solicitação manual na AWS). Cada identidade verificada
+recebe um e-mail da AWS com um link que o dono precisa abrir. A falha de envio nunca reverte a OS
+(best-effort). O LocalStack da comunidade não tem SES; localmente o canal fica em `sns`.
 
 ---
 
@@ -319,7 +337,8 @@ O que os manifests garantem:
 
 > **Pagamento automático + link ao cliente:** quando a OS entra em `PAGAMENTO_PENDENTE`,
 > o OS Service comanda o Billing a criar a cobrança (Saga); ao receber `CobrancaCriada`,
-> envia ao cliente o **link de checkout** por e-mail. O cliente também pode consultar o
+> envia o **link de checkout** por e-mail (ao cliente com o canal SES; com o SNS, ao endereço
+> inscrito no tópico). O cliente também pode consultar o
 > link em `GET {billing}/api/payments/service-order/{osId}` (campo `checkoutUrl`). A
 > confirmação chega quando o Billing vê o pagamento aprovado no Mercado Pago.
 

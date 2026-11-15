@@ -10,6 +10,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sesv2.SesV2Client;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
@@ -51,6 +52,15 @@ public class MessagingConfig {
     @Bean
     public SqsClient sqsClient(MessagingProperties props) {
         var builder = SqsClient.builder().region(Region.of(props.getRegion()));
+        applyEndpoint(props, builder::endpointOverride, builder::credentialsProvider);
+        return builder.build();
+    }
+
+    /** Client do SES: só existe com {@code messaging.notification-channel=ses}. */
+    @Bean
+    @ConditionalOnProperty(prefix = "messaging", name = "notification-channel", havingValue = "ses")
+    public SesV2Client sesClient(MessagingProperties props) {
+        var builder = SesV2Client.builder().region(Region.of(props.getRegion()));
         applyEndpoint(props, builder::endpointOverride, builder::credentialsProvider);
         return builder.build();
     }

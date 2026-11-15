@@ -78,6 +78,11 @@ messaging:
   saga-replies-queue-url: ${SAGA_REPLIES_QUEUE_URL:}
   # Tópico dedicado às notificações de status ao cliente (e-mail via subscription).
   notifications-topic-arn: ${NOTIFICATIONS_TOPIC_ARN:}
+  # Canal do e-mail ao cliente:
+  #  - sns (padrão): publica no tópico; o e-mail vai para quem está inscrito nele.
+  #  - ses: envia direto ao e-mail do cliente (exige SES_SENDER_EMAIL verificado no SES).
+  notification-channel: ${NOTIFICATION_CHANNEL:sns}
+  ses-sender-email: ${SES_SENDER_EMAIL:}
 
 # Validação de cliente/veículo no Customer Service (Fase 4, Etapa 6).
 #  - enabled=false (default): usa o NoopCustomerValidationAdapter (sem chamada REST),
