@@ -1,14 +1,17 @@
 package com.workbench.workshop.infrastructure.customer;
 
 import com.workbench.workshop.application.serviceorder.port.out.CustomerValidationPort;
+import com.workbench.workshop.infrastructure.security.ServiceTokenProvider;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Valida cliente e veículo chamando o Customer Service por REST (ADR-0003: nenhum
+ * Valida cliente e veículo chamando o Customer Service por REST (ADR-0006: nenhum
  * serviço acessa o banco de outro). Ativo com {@code customer.validation.enabled=true}.
  *
  * <ul>
@@ -16,7 +19,7 @@ import org.springframework.web.client.RestClientResponseException;
  *   <li>veículo: {@code GET /api/vehicles/plate/{placa}}</li>
  * </ul>
  * 404 vira {@link CustomerValidationException} (erro de negócio). Outras falhas de
- * comunicação sobem como {@link IllegalStateException} (indisponibilidade).
+ * comunicação viram {@link CustomerServiceUnavailableException} (503, sem detalhe interno).
  */
 @Component
 @ConditionalOnProperty(prefix = "customer.validation", name = "enabled", havingValue = "true")
@@ -24,9 +27,12 @@ import org.springframework.web.client.RestClientResponseException;
 public class CustomerRestValidationAdapter implements CustomerValidationPort {
 
     private final RestClient restClient;
+    private final ServiceTokenProvider serviceTokenProvider;
 
-    public CustomerRestValidationAdapter(RestClient.Builder builder, CustomerClientProperties props) {
+    public CustomerRestValidationAdapter(RestClient.Builder builder, CustomerClientProperties props,
+                                         ServiceTokenProvider serviceTokenProvider) {
         this.restClient = builder.baseUrl(props.getBaseUrl()).build();
+        this.serviceTokenProvider = serviceTokenProvider;
     }
 
     @Override
@@ -43,12 +49,17 @@ public class CustomerRestValidationAdapter implements CustomerValidationPort {
 
     private void get(String uriTemplate, String pathVar, String notFoundMessage) {
         try {
-            restClient.get().uri(uriTemplate, pathVar).retrieve().toBodilessEntity();
+            restClient.get().uri(uriTemplate, pathVar)
+                    .header(HttpHeaders.AUTHORIZATION, serviceTokenProvider.bearerToken())
+                    .retrieve().toBodilessEntity();
         } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 404) {
                 throw new CustomerValidationException(notFoundMessage);
             }
-            throw new IllegalStateException("Falha ao validar no Customer Service: " + e.getMessage(), e);
+            throw new CustomerServiceUnavailableException("Falha ao validar no Customer Service: " + e.getMessage(), e);
+        } catch (RestClientException e) {
+            // Sem resposta (fora do ar, timeout, DNS): também é indisponibilidade.
+            throw new CustomerServiceUnavailableException("Customer Service inacessível: " + e.getMessage(), e);
         }
     }
 }

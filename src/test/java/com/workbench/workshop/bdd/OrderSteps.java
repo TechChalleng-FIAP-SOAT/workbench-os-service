@@ -1,18 +1,16 @@
 package com.workbench.workshop.bdd;
 
+import com.workbench.workshop.support.TestKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.cucumber.java.pt.Dado;
 import io.cucumber.java.pt.Então;
 import io.cucumber.java.pt.Quando;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
+import java.security.PrivateKey;
 import java.util.Date;
 import java.util.List;
 
@@ -29,8 +27,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  */
 public class OrderSteps {
 
-    private static final String SECRET = "akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa";
-
     @Autowired private MockMvc mockMvc;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -44,9 +40,9 @@ public class OrderSteps {
 
     @Dado("que estou autenticado como atendente")
     public void autenticadoComoAtendente() {
-        SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+        PrivateKey key = TestKeys.authPrivateKey();
         long now = System.currentTimeMillis();
-        token = Jwts.builder()
+        token = TestKeys.authToken()
                 .subject("admin@system.com")
                 .claim("roles", List.of("ADMIN"))
                 .issuedAt(new Date(now))
@@ -96,6 +92,28 @@ public class OrderSteps {
                         .content("{\"status\":\"" + status + "\"}"))
                 .andReturn();
         lastStatusCode = res.getResponse().getStatus();
+    }
+
+    @Quando("o mecânico executa todos os serviços da OS")
+    public void oMecanicoExecutaTodosOsServicos() throws Exception {
+        MvcResult res = mockMvc.perform(get("/order/" + orderId + "/services").header("Authorization", bearer()))
+                .andReturn();
+        assertEquals(200, res.getResponse().getStatus());
+        for (var service : mapper.readTree(res.getResponse().getContentAsString())) {
+            for (String step : List.of("DOING", "DONE")) {
+                MvcResult moved = mockMvc.perform(patch("/order/" + orderId + "/services/" + service.get("id").asText() + "/status")
+                                .header("Authorization", bearer())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"status\":\"" + step + "\"}"))
+                        .andReturn();
+                assertEquals(200, moved.getResponse().getStatus(), "serviço deveria ir para " + step);
+            }
+        }
+    }
+
+    @Então("a transição é recusada por conflito")
+    public void aTransicaoERecusadaPorConflito() {
+        assertEquals(409, lastStatusCode, "esperava 409 ao finalizar com serviço pendente");
     }
 
     @Então("a OS tem status {string}")

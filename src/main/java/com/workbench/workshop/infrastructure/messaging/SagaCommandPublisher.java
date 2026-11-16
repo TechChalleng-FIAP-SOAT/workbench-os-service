@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Publica os comandos da Saga no tópico {@code order-events} (ADR-0003). As filas
+ * Publica os comandos da Saga no tópico {@code order-events} (ADR-0006). As filas
  * de comando do Billing e do Execution são inscritas nesse tópico e cada serviço
  * reage ao comando destinado a ele (pelo {@code type}).
  *

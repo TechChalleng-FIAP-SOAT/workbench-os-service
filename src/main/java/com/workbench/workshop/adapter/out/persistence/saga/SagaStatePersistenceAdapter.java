@@ -25,6 +25,7 @@ public class SagaStatePersistenceAdapter implements SagaStateRepository {
                         .id(UUID.randomUUID())
                         .serviceOrderId(s.getServiceOrderId())
                         .build());
+        entity.setSagaId(s.getSagaId());
         entity.setStep(s.getStep());
         entity.setCompletedSteps(String.join(",", s.getCompletedSteps()));
         entity.setFailureReason(s.getFailureReason());
@@ -51,7 +52,7 @@ public class SagaStatePersistenceAdapter implements SagaStateRepository {
                 ? List.of()
                 : List.of(e.getCompletedSteps().split(","));
         return SagaState.reconstitute(
-                longHash(e.getId()), e.getServiceOrderId(), e.getStep(),
+                longHash(e.getId()), e.getServiceOrderId(), e.getSagaId(), e.getStep(),
                 steps, e.getFailureReason(),
                 e.getPendingCommand(), e.getPendingPayloadJson(), e.getRetryCount(), e.getLastCommandAt(),
                 e.getCreatedAt(), e.getUpdatedAt());

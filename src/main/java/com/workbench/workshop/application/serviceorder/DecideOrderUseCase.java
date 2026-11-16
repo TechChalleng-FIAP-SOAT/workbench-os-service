@@ -1,12 +1,16 @@
 package com.workbench.workshop.application.serviceorder;
 
+import com.workbench.workshop.application.Requester;
 import com.workbench.workshop.application.saga.SagaOrchestrator;
 import com.workbench.workshop.application.serviceorder.port.out.OrderMetricsPort;
+import com.workbench.workshop.application.serviceorder.port.out.ServiceOrderRepository;
 import com.workbench.workshop.domain.serviceorder.Decision;
+import com.workbench.workshop.domain.serviceorder.ServiceOrder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.NoSuchElementException;
 import java.util.UUID;
 
 /**
@@ -19,9 +23,8 @@ import java.util.UUID;
  *       único estorno do fluxo) e a OS vai para RECUSADA.</li>
  * </ul>
  *
- * A orquestração em si (comandos de estoque + avanço do SagaState + transição de
- * status) fica no {@link SagaOrchestrator}; este caso de uso apenas valida a
- * decisão e delega.
+ * A orquestração em si fica no {@link SagaOrchestrator}; este caso de uso valida a
+ * decisão e quem decide (cliente só decide a própria OS; staff decide qualquer uma).
  */
 @Service
 @RequiredArgsConstructor
@@ -29,11 +32,17 @@ public class DecideOrderUseCase {
 
     private final SagaOrchestrator sagaOrchestrator;
     private final OrderMetricsPort metrics;
+    private final ServiceOrderRepository serviceOrderRepository;
 
     @Transactional
-    public void execute(UUID orderId, Decision decision, String reason) {
+    public void execute(UUID orderId, Decision decision, String reason, Requester requester) {
         if (decision == null) {
-            throw new IllegalArgumentException("Decisao do orcamento e obrigatoria (APPROVED/REJECTED).");
+            throw new IllegalArgumentException("Decisão do orçamento é obrigatória (APPROVED/REJECTED).");
+        }
+        if (requester.client()) {
+            ServiceOrder order = serviceOrderRepository.findById(orderId)
+                    .orElseThrow(() -> new NoSuchElementException("Ordem de serviço não encontrada: " + orderId));
+            requester.requireAccessTo(order.getCpfCnpj());
         }
         try {
             switch (decision) {

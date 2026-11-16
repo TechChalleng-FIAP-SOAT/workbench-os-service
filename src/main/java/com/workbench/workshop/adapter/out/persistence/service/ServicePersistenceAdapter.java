@@ -1,5 +1,6 @@
 package com.workbench.workshop.adapter.out.persistence.service;
 
+import java.math.BigDecimal;
 import com.workbench.workshop.application.service.port.out.ServiceRepository;
 import com.workbench.workshop.domain.service.WorkshopService;
 import com.workbench.workshop.infrastructure.persistence.service.ServiceEntity;
@@ -40,11 +41,8 @@ public class ServicePersistenceAdapter implements ServiceRepository {
     }
 
     private WorkshopService toDomain(ServiceEntity entity) {
-        WorkshopService service = new WorkshopService(
-                entity.getId(), entity.getServiceTypeName(), entity.getIdOS(), entity.getServiceStatus());
-        service.setLaborCost(entity.getLaborCost() == null ? java.math.BigDecimal.ZERO : entity.getLaborCost());
-        service.setLaborHours(entity.getLaborHours());
-        return service;
+        return WorkshopService.reconstitute(entity.getId(), entity.getServiceTypeName(), entity.getIdOS(),
+                entity.getServiceStatus(), entity.getLaborCost(), entity.getLaborHours());
     }
 
     private ServiceEntity toEntity(WorkshopService service) {
@@ -53,7 +51,7 @@ public class ServicePersistenceAdapter implements ServiceRepository {
         entity.setServiceTypeName(service.getServiceTypeName());
         entity.setIdOS(service.getIdOS());
         entity.setServiceStatus(service.getServiceStatus());
-        entity.setLaborCost(service.getLaborCost() == null ? java.math.BigDecimal.ZERO : service.getLaborCost());
+        entity.setLaborCost(service.getLaborCost() == null ? BigDecimal.ZERO : service.getLaborCost());
         entity.setLaborHours(service.getLaborHours());
         return entity;
     }

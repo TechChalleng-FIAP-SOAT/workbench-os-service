@@ -8,7 +8,9 @@ import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * Adapter de métricas de negócio (Micrometer/Datadog). Implementa OrderMetricsPort,
@@ -52,7 +54,13 @@ public class ServiceOrderMetrics implements OrderMetricsPort {
             default -> null;
         };
         if (stage != null && enteredAt != null) {
-            Duration duration = Duration.between(enteredAt, LocalDateTime.now());
+            // Converte para Instant (zone-aware) antes de medir a duração: medir
+            // intervalo com LocalDateTime (sem fuso) é frágil na virada de horário
+            // de verão. Usamos o fuso do projeto (America/Sao_Paulo) nas duas pontas.
+            ZoneId zone = ZoneId.of("America/Sao_Paulo");
+            Instant start = enteredAt.atZone(zone).toInstant();
+            Instant end = LocalDateTime.now().atZone(zone).toInstant();
+            Duration duration = Duration.between(start, end);
             if (!duration.isNegative()) {
                 Timer.builder("workshop.service_orders.status.duration")
                         .description("Time an order spends in each operational stage")

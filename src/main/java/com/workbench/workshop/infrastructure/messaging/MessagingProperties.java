@@ -21,4 +21,24 @@ public class MessagingProperties {
     private String endpoint;
     private String orderEventsTopicArn;
     private String sagaRepliesQueueUrl;
+    /** Tópico dedicado às notificações de status ao cliente (e-mail via subscription). */
+    private String notificationsTopicArn;
+
+    /**
+     * Canal do e-mail ao cliente: {@code sns} (padrão) publica no tópico e o e-mail vai para
+     * quem estiver inscrito nele; {@code ses} envia direto ao endereço do cliente.
+     */
+    private String notificationChannel = "sns";
+
+    /**
+     * Remetente verificado no SES (obrigatório com {@code notification-channel=ses}). No modo
+     * sandbox do SES, os destinatários também precisam estar verificados.
+     */
+    private String sesSenderEmail;
+
+    /**
+     * Configuration set do SES que envia bounces e reclamações ao tópico de alertas (criado no
+     * workbench-messaging). Vazio = envia sem configuration set.
+     */
+    private String sesConfigurationSet;
 }

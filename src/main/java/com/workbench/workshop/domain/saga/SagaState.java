@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Estado persistido da Saga de uma OS (orquestração — ADR-0003/0005).
+ * Estado persistido da Saga de uma OS (orquestração — ADR-0006/0005).
  *
  * <p>Guarda o passo atual e os passos já concluídos com sucesso — é o
  * {@code completedSteps} que permite ao orquestrador saber o que compensar quando
@@ -19,6 +19,11 @@ public class SagaState {
 
     private Long id;
     private UUID serviceOrderId;
+    /**
+     * Rodada da Saga: vai no {@code sagaId} de cada comando e volta na resposta. Um novo
+     * diagnóstico abre uma rodada nova, e as respostas da anterior são descartadas.
+     */
+    private UUID sagaId;
     private SagaStep step;
     private final List<String> completedSteps = new ArrayList<>();
     private String failureReason;
@@ -40,6 +45,7 @@ public class SagaState {
     public static SagaState start(UUID serviceOrderId) {
         SagaState s = new SagaState();
         s.serviceOrderId = serviceOrderId;
+        s.sagaId = UUID.randomUUID();
         s.step = SagaStep.INICIADA;
         return s;
     }
@@ -47,11 +53,21 @@ public class SagaState {
     public static SagaState reconstitute(Long id, UUID serviceOrderId, SagaStep step,
                                          List<String> completedSteps, String failureReason,
                                          LocalDateTime createdAt, LocalDateTime updatedAt) {
-        return reconstitute(id, serviceOrderId, step, completedSteps, failureReason,
+        return reconstitute(id, serviceOrderId, serviceOrderId, step, completedSteps, failureReason,
                 null, null, 0, null, createdAt, updatedAt);
     }
 
+    /** Sem {@code sagaId} explícito, a rodada é o id da OS (como era antes da V9). */
     public static SagaState reconstitute(Long id, UUID serviceOrderId, SagaStep step,
+                                         List<String> completedSteps, String failureReason,
+                                         String pendingCommand, String pendingPayloadJson,
+                                         int retryCount, LocalDateTime lastCommandAt,
+                                         LocalDateTime createdAt, LocalDateTime updatedAt) {
+        return reconstitute(id, serviceOrderId, serviceOrderId, step, completedSteps, failureReason,
+                pendingCommand, pendingPayloadJson, retryCount, lastCommandAt, createdAt, updatedAt);
+    }
+
+    public static SagaState reconstitute(Long id, UUID serviceOrderId, UUID sagaId, SagaStep step,
                                          List<String> completedSteps, String failureReason,
                                          String pendingCommand, String pendingPayloadJson,
                                          int retryCount, LocalDateTime lastCommandAt,
@@ -59,6 +75,7 @@ public class SagaState {
         SagaState s = new SagaState();
         s.id = id;
         s.serviceOrderId = serviceOrderId;
+        s.sagaId = sagaId != null ? sagaId : serviceOrderId;
         s.step = step;
         if (completedSteps != null) s.completedSteps.addAll(completedSteps);
         s.failureReason = failureReason;
@@ -69,6 +86,23 @@ public class SagaState {
         s.createdAt = createdAt;
         s.updatedAt = updatedAt;
         return s;
+    }
+
+    /**
+     * Recomeça uma Saga que falhou (ex.: faltou estoque na reserva) para um novo
+     * diagnóstico da mesma OS. Só a Saga encerrada em {@link SagaStep#FALHOU} pode
+     * recomeçar: com ela em andamento, um segundo diagnóstico duplicaria reserva/orçamento.
+     */
+    public void restart() {
+        if (step != SagaStep.FALHOU) {
+            throw new IllegalStateException("A Saga desta OS está em andamento (passo " + step
+                    + "); só é possível refazer o diagnóstico depois de uma falha.");
+        }
+        completedSteps.clear();
+        failureReason = null;
+        clearPendingCommand();
+        sagaId = UUID.randomUUID();
+        step = SagaStep.INICIADA;
     }
 
     /** Avança para o próximo passo, registrando o anterior como concluído. */
@@ -84,9 +118,20 @@ public class SagaState {
         this.failureReason = reason;
     }
 
+    /** Encerra a Saga com falha. Sem comando pendente: o job de timeout não a reprocessa. */
     public void markFailed(String reason) {
+        clearPendingCommand();
         this.step = SagaStep.FALHOU;
         this.failureReason = reason;
+    }
+
+    /** Registra uma falha sem mudar de passo (ex.: pagamento recusado — a Saga segue aguardando). */
+    public void recordFailure(String reason) {
+        this.failureReason = reason;
+    }
+
+    public void clearFailure() {
+        this.failureReason = null;
     }
 
     public void markCompleted() {
@@ -124,5 +169,10 @@ public class SagaState {
 
     public boolean hasPendingCommand() {
         return pendingCommand != null;
+    }
+
+    /** True se a resposta é de outra rodada (ex.: reentrega do SQS depois de um novo diagnóstico). */
+    public boolean isFromAnotherRun(String replySagaId) {
+        return replySagaId != null && !replySagaId.equals(sagaId.toString());
     }
 }

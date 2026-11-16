@@ -1,5 +1,8 @@
 package com.workbench.workshop.infrastructure.messaging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,6 +10,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sesv2.SesV2Client;
 import software.amazon.awssdk.services.sns.SnsClient;
 import software.amazon.awssdk.services.sqs.SqsClient;
 
@@ -24,6 +28,20 @@ import java.net.URI;
 @org.springframework.scheduling.annotation.EnableScheduling
 public class MessagingConfig {
 
+    /**
+     * {@link ObjectMapper} usado pelos publishers/consumers da Saga para
+     * (de)serializar os {@code MessageEnvelope}. No Spring Boot 4 o
+     * {@code ObjectMapper} do Jackson 2 deixou de ser exposto como bean por
+     * autoconfiguração, então o definimos explicitamente aqui. O
+     * {@link JavaTimeModule} garante a serialização de {@code Instant}/datas
+     * presentes nos envelopes.
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    public ObjectMapper messagingObjectMapper() {
+        return new ObjectMapper().registerModule(new JavaTimeModule());
+    }
+
     @Bean
     public SnsClient snsClient(MessagingProperties props) {
         var builder = SnsClient.builder().region(Region.of(props.getRegion()));
@@ -34,6 +52,15 @@ public class MessagingConfig {
     @Bean
     public SqsClient sqsClient(MessagingProperties props) {
         var builder = SqsClient.builder().region(Region.of(props.getRegion()));
+        applyEndpoint(props, builder::endpointOverride, builder::credentialsProvider);
+        return builder.build();
+    }
+
+    /** Client do SES: só existe com {@code messaging.notification-channel=ses}. */
+    @Bean
+    @ConditionalOnProperty(prefix = "messaging", name = "notification-channel", havingValue = "ses")
+    public SesV2Client sesClient(MessagingProperties props) {
+        var builder = SesV2Client.builder().region(Region.of(props.getRegion()));
         applyEndpoint(props, builder::endpointOverride, builder::credentialsProvider);
         return builder.build();
     }

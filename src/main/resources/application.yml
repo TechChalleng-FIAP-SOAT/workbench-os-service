@@ -1,10 +1,16 @@
 spring:
   application:
     name: os-service
+  # Mais de uma thread para os @Scheduled: o consumidor SQS faz long polling e não pode
+  # dividir a única thread padrão com os outros jobs (timeout da Saga, consulta ao gateway).
+  task:
+    scheduling:
+      pool:
+        size: ${SCHEDULING_POOL_SIZE:4}
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/os_service}
     username: ${SPRING_DATASOURCE_USERNAME:dbadmin}
-    password: ${SPRING_DATASOURCE_PASSWORD:senha-super-segura}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
       max-lifetime: 1740000
       keepalive-time: 300000
@@ -55,8 +61,10 @@ server:
   port: 8080
 
 jwt:
-  secret: ${JWT_SECRET:akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa}
-  expiration: ${JWT_EXPIRATION:86400000}
+  # Chave PÚBLICA da Lambda de autenticação (RS256), Base64 do DER. Sem padrão: sem ela não sobe.
+  public-key: ${JWT_PUBLIC_KEY}
+  # Chave PRIVADA do token de serviço que o os-service usa ao chamar o customer-service.
+  service-private-key: ${JWT_SERVICE_PRIVATE_KEY}
 
 # -----------------------------------------------------------------------------
 # Mensageria (SNS/SQS) — Fase 4, Etapa 2.
@@ -71,6 +79,15 @@ messaging:
   endpoint: ${AWS_ENDPOINT:}
   order-events-topic-arn: ${ORDER_EVENTS_TOPIC_ARN:}
   saga-replies-queue-url: ${SAGA_REPLIES_QUEUE_URL:}
+  # Tópico dedicado às notificações de status ao cliente (e-mail via subscription).
+  notifications-topic-arn: ${NOTIFICATIONS_TOPIC_ARN:}
+  # Canal do e-mail ao cliente:
+  #  - sns (padrão): publica no tópico; o e-mail vai para quem está inscrito nele.
+  #  - ses: envia direto ao e-mail do cliente (exige SES_SENDER_EMAIL verificado no SES).
+  notification-channel: ${NOTIFICATION_CHANNEL:sns}
+  ses-sender-email: ${SES_SENDER_EMAIL:}
+  # Configuration set do SES (bounces e reclamações → tópico de alertas). Vazio = sem.
+  ses-configuration-set: ${SES_CONFIGURATION_SET:}
 
 # Validação de cliente/veículo no Customer Service (Fase 4, Etapa 6).
 #  - enabled=false (default): usa o NoopCustomerValidationAdapter (sem chamada REST),
@@ -80,3 +97,5 @@ customer:
   validation:
     enabled: ${CUSTOMER_VALIDATION_ENABLED:false}
     base-url: ${CUSTOMER_SERVICE_URL:}
+    connect-timeout: ${CUSTOMER_CONNECT_TIMEOUT:2s}
+    read-timeout: ${CUSTOMER_READ_TIMEOUT:5s}

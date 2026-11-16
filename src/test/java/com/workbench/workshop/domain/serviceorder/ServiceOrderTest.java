@@ -18,7 +18,7 @@ class ServiceOrderTest {
 
         assertNotNull(order.getId());
         assertEquals(OrderServiceStatusEnum.RECEBIDA, order.getStatus());
-        assertEquals("ABC1234", order.getPlacaVeiculo());
+        assertEquals("ABC1234", order.getLicensePlate());
         assertEquals("52998224725", order.getCpfCnpj());
         assertEquals(List.of("TROCA_OLEO"), order.getListService());
     }
@@ -59,7 +59,7 @@ class ServiceOrderTest {
     }
 
     @Test
-    void reopen_fromRecusadaGoesBackToDiagnostico() {
+    void reopen_fromRejectedGoesBackToDiagnosis() {
         ServiceOrder order = newOrder();
         order.advanceTo(OrderServiceStatusEnum.EM_DIAGNOSTICO);
         order.advanceTo(OrderServiceStatusEnum.AGUARDANDO_APROVACAO);

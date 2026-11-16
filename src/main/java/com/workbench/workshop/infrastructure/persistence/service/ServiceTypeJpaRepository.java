@@ -9,4 +9,5 @@ import java.util.UUID;
 @Repository
 public interface ServiceTypeJpaRepository extends JpaRepository<ServiceTypeEntity, UUID> {
     Optional<ServiceTypeEntity> findByName(String name);
+    boolean existsByName(String name);
 }

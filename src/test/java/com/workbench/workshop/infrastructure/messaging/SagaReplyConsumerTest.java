@@ -53,7 +53,7 @@ class SagaReplyConsumerTest {
         consumer.poll();
 
         verify(sqsClient).deleteMessage(any(DeleteMessageRequest.class));
-        verify(orchestrator).onEvent(eq("ReservaConfirmada"), eq(UUID.fromString(OS_ID)), any());
+        verify(orchestrator).onEvent(eq("ReservaConfirmada"), eq("saga-1"), eq(UUID.fromString(OS_ID)), any());
     }
 
     @Test
@@ -65,7 +65,7 @@ class SagaReplyConsumerTest {
 
         // Ambas são apagadas (a 2ª como duplicata), mas o processamento ocorre 1x.
         verify(sqsClient, times(2)).deleteMessage(any(DeleteMessageRequest.class));
-        verify(orchestrator, times(1)).onEvent(any(), any(), any());
+        verify(orchestrator, times(1)).onEvent(any(), any(), any(), any());
     }
 
     @Test
