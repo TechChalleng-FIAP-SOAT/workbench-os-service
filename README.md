@@ -260,7 +260,7 @@ O Flyway cria o schema na subida. Configuração relevante (env):
 |---|---|---|
 | `SPRING_DATASOURCE_URL` / `_USERNAME` | Postgres local | Banco próprio da OS |
 | `SPRING_DATASOURCE_PASSWORD` | — (obrigatório; dev no perfil `local`) | Senha do banco |
-| `JWT_PUBLIC_KEY` | — (obrigatório; dev no perfil `local`) | Chave **pública** RS256 da Lambda de login: o serviço verifica token, não emite |
+| `JWT_PUBLIC_KEY` | — (obrigatório; em dev vem do `.env` do compose, gerado por `workbench-messaging/scripts/dev-keys.sh`) | Chave **pública** RS256 da Lambda de login: o serviço verifica token, não emite |
 | `JWT_SERVICE_PRIVATE_KEY` | — (obrigatório; dev no perfil `local`) | Chave privada do token de serviço (`kid=os-service`) usado nas chamadas ao customer |
 | `MESSAGING_ENABLED` | `false` | Liga SNS/SQS; `false` usa adapters no-op (sem broker) |
 | `ORDER_EVENTS_TOPIC_ARN` | — | Tópico onde o orquestrador publica os comandos da Saga |
