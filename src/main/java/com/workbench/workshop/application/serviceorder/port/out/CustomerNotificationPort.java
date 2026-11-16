@@ -16,4 +16,11 @@ public interface CustomerNotificationPort {
      * criada. Assim ele paga sem precisar chamar nenhuma API. Best-effort.
      */
     void notifyPaymentLink(ServiceOrder order, String checkoutUrl);
+
+    /**
+     * Avisa o cliente que o pagamento <b>não foi aprovado</b>. A OS não muda de status (segue em
+     * {@code PAGAMENTO_PENDENTE}), então sem este aviso ele só descobriria ao tentar de novo.
+     * Best-effort.
+     */
+    void notifyPaymentFailed(ServiceOrder order);
 }

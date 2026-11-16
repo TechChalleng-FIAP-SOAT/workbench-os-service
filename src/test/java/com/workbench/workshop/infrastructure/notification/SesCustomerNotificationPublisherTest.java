@@ -122,6 +122,33 @@ class SesCustomerNotificationPublisherTest {
     }
 
     @Test
+    void paymentFailureEmailGoesToTheCustomerWithoutTheTechnicalReason() {
+        when(clientContactPort.findEmailByDocument("52998224725")).thenReturn(Optional.of("maria@example.com"));
+
+        publisher.notifyPaymentFailed(order());
+
+        SendEmailRequest request = sent();
+        assertEquals(List.of("maria@example.com"), request.destination().toAddresses());
+        assertTrue(request.content().simple().subject().data().toLowerCase().contains("pagamento"));
+        String body = request.content().simple().body().text().data();
+        assertTrue(body.contains("nao foi aprovado"));
+        assertTrue(body.contains("novo link"));
+        // Sem link: a recusa não traz o link antigo, e o motivo do gateway é interno.
+        assertFalse(body.contains("http"));
+    }
+
+    @Test
+    void paymentFailureEmailIsSkippedWithoutCustomerAddressOrOnSesError() {
+        when(clientContactPort.findEmailByDocument(anyString())).thenReturn(Optional.empty());
+        publisher.notifyPaymentFailed(order());
+        verifyNoInteractions(sesClient);
+
+        when(clientContactPort.findEmailByDocument(anyString())).thenReturn(Optional.of("a@b.com"));
+        when(sesClient.sendEmail(any(SendEmailRequest.class))).thenThrow(new RuntimeException("MessageRejected"));
+        assertDoesNotThrow(() -> publisher.notifyPaymentFailed(order()));
+    }
+
+    @Test
     void refusesToStartWithoutASender() {
         assertThrows(IllegalStateException.class,
                 () -> new SesCustomerNotificationPublisher(sesClient, props(null), clientContactPort));

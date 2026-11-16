@@ -106,4 +106,31 @@ public class SnsCustomerNotificationPublisher implements CustomerNotificationPor
             log.error("Falha ao enviar link de pagamento da OS {}: {}", order.getId(), e.getMessage(), e);
         }
     }
+
+    @Override
+    public void notifyPaymentFailed(ServiceOrder order) {
+        String topicArn = props.getNotificationsTopicArn();
+        if (topicArn == null || topicArn.isBlank()) {
+            log.debug("notifications-topic-arn ausente — aviso de pagamento recusado não enviado (os={})", order.getId());
+            return;
+        }
+        try {
+            Optional<String> email = clientContactPort.findEmailByDocument(order.getCpfCnpj());
+            var content = CustomerNotificationMessages.paymentFailed(order);
+
+            PublishRequest.Builder request = PublishRequest.builder()
+                    .topicArn(topicArn)
+                    .subject(content.subject())
+                    .message(content.body());
+            email.ifPresent(e -> request.messageAttributes(Map.of(
+                    "clientEmail", MessageAttributeValue.builder()
+                            .dataType("String").stringValue(e).build())));
+
+            snsClient.publish(request.build());
+            log.info("Aviso de pagamento recusado publicado: os={}, email={}", order.getId(), email.orElse("(sem e-mail)"));
+        } catch (RuntimeException e) {
+            // Best-effort: não reverte o fluxo de negócio.
+            log.error("Falha ao avisar pagamento recusado da OS {}: {}", order.getId(), e.getMessage(), e);
+        }
+    }
 }

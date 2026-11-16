@@ -26,4 +26,9 @@ public class NoopCustomerNotificationAdapter implements CustomerNotificationPort
     public void notifyPaymentLink(ServiceOrder order, String checkoutUrl) {
         log.debug("[noop] link de pagamento não enviado (messaging desligado): os={}", order.getId());
     }
+
+    @Override
+    public void notifyPaymentFailed(ServiceOrder order) {
+        log.debug("[noop] aviso de pagamento recusado não enviado (messaging desligado): os={}", order.getId());
+    }
 }

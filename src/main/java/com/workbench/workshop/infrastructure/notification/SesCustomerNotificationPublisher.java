@@ -68,6 +68,11 @@ public class SesCustomerNotificationPublisher implements CustomerNotificationPor
         send(order, CustomerNotificationMessages.paymentLink(order, checkoutUrl), "link de pagamento");
     }
 
+    @Override
+    public void notifyPaymentFailed(ServiceOrder order) {
+        send(order, CustomerNotificationMessages.paymentFailed(order), "pagamento recusado");
+    }
+
     private void send(ServiceOrder order, CustomerNotificationMessages.Email content, String kind) {
         try {
             Optional<String> recipient = clientContactPort.findEmailByDocument(order.getCpfCnpj());

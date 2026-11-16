@@ -105,7 +105,7 @@ Diagnóstico ──ComandoReservarEstoque──▶ Execution ──ReservaConfir
 > O papel **deste** serviço: dispara `ComandoCobrarPagamento` quando a OS entra em
 > `PAGAMENTO_PENDENTE`, envia o **e-mail com o link** ao receber `CobrancaCriada`, aceita
 > `PagamentoConfirmado` só da rodada atual da Saga e, então, leva a OS a `PAGO` → `ENTREGUE` e
-> envia **um e-mail** com o status final. Pagamento recusado **não** envia e-mail: a OS fica
+> envia **um e-mail** com o status final. Pagamento recusado envia o aviso **"pagamento não aprovado"** (uma vez por recusa): a OS fica
 > retida e o cliente pede nova cobrança em `POST /order/{id}/payment-retry`.
 
 > Nomes, campos obrigatórios e exemplos de cada mensagem estão no contrato executável

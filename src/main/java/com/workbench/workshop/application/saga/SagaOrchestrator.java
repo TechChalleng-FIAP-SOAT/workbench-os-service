@@ -372,9 +372,18 @@ public class SagaOrchestrator {
     // de erro, não compensação: a Saga segue em AGUARDANDO_PAGAMENTO com o motivo
     // registrado, e o cliente/equipe pode pedir uma nova cobrança (retryPayment).
     private void onPaymentFailed(SagaState saga, UUID osId, Map<String, Object> payload) {
+        // O SQS entrega "pelo menos uma vez" e a Saga segue em AGUARDANDO_PAGAMENTO depois da recusa,
+        // então a mesma recusa pode chegar de novo. Só avisa o cliente na primeira: o payment-retry
+        // limpa o motivo, e uma recusa da cobrança nova volta a avisar.
+        boolean firstRefusal = saga.getFailureReason() == null;
         saga.clearPendingCommand();
         saga.recordFailure(String.valueOf(payload.getOrDefault("reason", "pagamento recusado")));
         sagaStateRepository.save(saga);
+        if (firstRefusal) {
+            serviceOrderRepository.findById(osId).ifPresent(order -> AfterCommit.run(
+                    "e-mail de pagamento recusado da OS " + osId,
+                    () -> customerNotificationPort.notifyPaymentFailed(order)));
+        }
         log.warn("Pagamento falhou; OS retida em PAGAMENTO_PENDENTE (sem estorno de estoque): os={}", osId);
     }
 

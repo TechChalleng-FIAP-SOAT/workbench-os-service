@@ -238,18 +238,57 @@ class SagaOrchestratorTest {
     }
 
     @Test
-    void paymentFailedAndLatePaymentSendNoEmail() {
+    void paymentFailedWarnsTheCustomerOnce() {
         when(sagaStateRepository.findByServiceOrderId(osId))
                 .thenReturn(Optional.of(sagaAt(SagaStep.AGUARDANDO_PAGAMENTO)));
+        when(serviceOrderRepository.findById(osId))
+                .thenReturn(Optional.of(order(OrderServiceStatusEnum.PAGAMENTO_PENDENTE)));
+
         orchestrator.onEvent("PagamentoFalhou", osId.toString(), osId, Map.of("reason", "cartao recusado"));
 
-        // Recusado: a OS segue em PAGAMENTO_PENDENTE e não há status novo para anunciar.
-        verifyNoInteractions(customerNotificationPort);
+        // A OS segue em PAGAMENTO_PENDENTE: o cliente precisa ser avisado, senão só descobre ao tentar de novo.
+        verify(customerNotificationPort, times(1)).notifyPaymentFailed(
+                argThat(o -> o.getStatus() == OrderServiceStatusEnum.PAGAMENTO_PENDENTE));
+        verify(customerNotificationPort, never()).notifyCustomer(any());
+        verify(customerNotificationPort, never()).notifyPaymentLink(any(), any());
+    }
 
-        // Confirmação repetida depois de a Saga concluir é descartada: sem e-mail duplicado.
+    @Test
+    void redeliveredPaymentFailureDoesNotEmailTwice() {
+        // O SQS entrega "pelo menos uma vez": a mesma recusa pode chegar de novo.
+        SagaState saga = sagaAt(SagaStep.AGUARDANDO_PAGAMENTO);
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
+        when(serviceOrderRepository.findById(osId))
+                .thenReturn(Optional.of(order(OrderServiceStatusEnum.PAGAMENTO_PENDENTE)));
+
+        orchestrator.onEvent("PagamentoFalhou", osId.toString(), osId, Map.of("reason", "cartao recusado"));
+        orchestrator.onEvent("PagamentoFalhou", osId.toString(), osId, Map.of("reason", "cartao recusado"));
+
+        verify(customerNotificationPort, times(1)).notifyPaymentFailed(any());
+    }
+
+    @Test
+    void failureAfterANewChargeWarnsAgain() {
+        // Recusa → payment-retry (limpa o motivo) → nova recusa: é outra cobrança, avisa de novo.
+        SagaState saga = sagaAt(SagaStep.AGUARDANDO_PAGAMENTO);
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
+        when(serviceOrderRepository.findById(osId))
+                .thenReturn(Optional.of(order(OrderServiceStatusEnum.PAGAMENTO_PENDENTE)));
+
+        orchestrator.onEvent("PagamentoFalhou", osId.toString(), osId, Map.of("reason", "recusado 1"));
+        orchestrator.retryPayment(osId);
+        orchestrator.onEvent("PagamentoFalhou", saga.getSagaId().toString(), osId, Map.of("reason", "recusado 2"));
+
+        verify(customerNotificationPort, times(2)).notifyPaymentFailed(any());
+    }
+
+    @Test
+    void lateConfirmationAfterCompletionSendsNoEmail() {
         when(sagaStateRepository.findByServiceOrderId(osId))
                 .thenReturn(Optional.of(sagaAt(SagaStep.CONCLUIDA)));
+
         orchestrator.onEvent("PagamentoConfirmado", osId.toString(), osId, Map.of());
+
         verifyNoInteractions(customerNotificationPort);
     }
 

@@ -104,6 +104,31 @@ class SnsCustomerNotificationPublisherTest {
     }
 
     @Test
+    void publishesPaymentFailureNoticeWithClientEmail() {
+        when(clientContactPort.findEmailByDocument("52998224725"))
+                .thenReturn(Optional.of("maria@example.com"));
+        publisher.notifyPaymentFailed(order());
+        ArgumentCaptor<PublishRequest> captor = ArgumentCaptor.forClass(PublishRequest.class);
+        verify(snsClient).publish(captor.capture());
+        PublishRequest req = captor.getValue();
+        assertTrue(req.subject().toLowerCase().contains("pagamento"));
+        assertTrue(req.message().contains("nao foi aprovado"));
+        assertEquals("maria@example.com", req.messageAttributes().get("clientEmail").stringValue());
+    }
+
+    @Test
+    void paymentFailureNoticeSkippedWhenTopicMissingAndSwallowsSnsError() {
+        props.setNotificationsTopicArn("");
+        publisher.notifyPaymentFailed(order());
+        verifyNoInteractions(snsClient);
+
+        props.setNotificationsTopicArn("arn:aws:sns:us-east-1:000:os-notifications");
+        when(clientContactPort.findEmailByDocument(anyString())).thenReturn(Optional.of("a@b.com"));
+        when(snsClient.publish(any(PublishRequest.class))).thenThrow(new RuntimeException("boom"));
+        assertDoesNotThrow(() -> publisher.notifyPaymentFailed(order()));
+    }
+
+    @Test
     void paymentLinkSnsFailureIsSwallowed() {
         when(clientContactPort.findEmailByDocument(anyString())).thenReturn(Optional.of("a@b.com"));
         when(snsClient.publish(any(PublishRequest.class))).thenThrow(new RuntimeException("boom"));

@@ -25,6 +25,33 @@ final class CustomerNotificationMessages {
                 buildPaymentMessage(order.getCpfCnpj(), order.getLicensePlate(), checkoutUrl));
     }
 
+    /**
+     * Pagamento recusado. Não repete o motivo técnico do gateway ao cliente: ele só precisa saber
+     * que não foi aprovado e o que fazer.
+     */
+    static Email paymentFailed(ServiceOrder order) {
+        return new Email("OS Management - Pagamento nao aprovado da sua Ordem de Servico",
+                buildPaymentFailedMessage(order.getCpfCnpj(), order.getLicensePlate()));
+    }
+
+    private static String buildPaymentFailedMessage(String clientDocument, String vehicleInfo) {
+        return String.format("""
+                ============================================
+                OS Management - Pagamento nao aprovado
+                ============================================
+                Ola,
+                O pagamento da sua ordem de servico nao foi aprovado.
+                Sua ordem continua aguardando o pagamento. Para tentar novamente,
+                solicite um novo link de pagamento a oficina.
+                Cliente (documento): %s
+                Veiculo: %s
+                --------------------------------------------
+                Oficina Mecanica - OS Management
+                Este e um email automatico.
+                ============================================
+                """, clientDocument, vehicleInfo);
+    }
+
     private static String buildPaymentMessage(String clientDocument, String vehicleInfo, String checkoutUrl) {
         return String.format("""
                 ============================================
