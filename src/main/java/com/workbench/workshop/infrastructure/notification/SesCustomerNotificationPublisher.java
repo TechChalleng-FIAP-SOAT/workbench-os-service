@@ -38,6 +38,7 @@ public class SesCustomerNotificationPublisher implements CustomerNotificationPor
     private final SesV2Client sesClient;
     private final ClientContactPort clientContactPort;
     private final String sender;
+    private final String configurationSet;
 
     // S9352: ClientContactPort tem dois beans mutuamente exclusivos via @ConditionalOnProperty
     // (Noop/REST); só um existe em runtime, então o alerta de ambiguidade é falso positivo.
@@ -47,6 +48,7 @@ public class SesCustomerNotificationPublisher implements CustomerNotificationPor
         this.sesClient = sesClient;
         this.clientContactPort = clientContactPort;
         this.sender = props.getSesSenderEmail();
+        this.configurationSet = props.getSesConfigurationSet();
         // Falha fechada: sem remetente, nenhum e-mail sairia. Melhor não subir do que perder tudo em silêncio.
         if (sender == null || sender.isBlank()) {
             throw new IllegalStateException(
@@ -81,14 +83,18 @@ public class SesCustomerNotificationPublisher implements CustomerNotificationPor
                 return;
             }
             String to = recipient.get();
-            var response = sesClient.sendEmail(SendEmailRequest.builder()
+            SendEmailRequest.Builder request = SendEmailRequest.builder()
                     .fromEmailAddress(sender)
                     .destination(Destination.builder().toAddresses(to).build())
                     .content(EmailContent.builder().simple(Message.builder()
                             .subject(utf8(content.subject()))
                             .body(Body.builder().text(utf8(content.body())).build())
-                            .build()).build())
-                    .build());
+                            .build()).build());
+            // Bounces e reclamações voltam ao tópico de alertas pelo configuration set.
+            if (configurationSet != null && !configurationSet.isBlank()) {
+                request.configurationSetName(configurationSet);
+            }
+            var response = sesClient.sendEmail(request.build());
             // O endereço do cliente é dado pessoal: o log leva o id da OS e o id da mensagem, não o e-mail.
             log.info("E-mail ao cliente enviado pelo SES ({}): os={}, messageId={}",
                     kind, order.getId(), response.messageId());

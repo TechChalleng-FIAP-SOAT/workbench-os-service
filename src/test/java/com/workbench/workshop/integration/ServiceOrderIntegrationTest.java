@@ -1,8 +1,7 @@
 package com.workbench.workshop.integration;
 
+import com.workbench.workshop.support.TestKeys;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -10,8 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
+import java.security.PrivateKey;
 import java.util.Date;
 import java.util.List;
 
@@ -27,15 +25,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ServiceOrderIntegrationTest extends IntegrationTestBase {
 
-    private static final String SECRET = "akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa";
-
     @Autowired private MockMvc mockMvc;
     private final ObjectMapper mapper = new ObjectMapper();
 
     private String staffToken() {
-        SecretKey key = Keys.hmacShaKeyFor(SECRET.getBytes(StandardCharsets.UTF_8));
+        PrivateKey key = TestKeys.authPrivateKey();
         long now = System.currentTimeMillis();
-        return Jwts.builder()
+        return TestKeys.authToken()
                 .subject("admin@system.com")
                 .claim("roles", List.of("ADMIN"))
                 .issuedAt(new Date(now))

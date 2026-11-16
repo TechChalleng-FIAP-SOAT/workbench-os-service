@@ -1,5 +1,6 @@
 package com.workbench.workshop.infrastructure.customer;
 
+import com.workbench.workshop.support.TestKeys;
 import com.workbench.workshop.infrastructure.security.JwtProperties;
 import com.workbench.workshop.infrastructure.security.ServiceTokenProvider;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,7 @@ class ClientContactAdaptersTest {
 
     private final CustomerClientProperties props = props("http://customer");
     private final ServiceTokenProvider serviceTokenProvider =
-            new ServiceTokenProvider(new JwtProperties("akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa"));
+            new ServiceTokenProvider(TestKeys.jwtProperties());
 
     private static CustomerClientProperties props(String url) {
         var p = new CustomerClientProperties();

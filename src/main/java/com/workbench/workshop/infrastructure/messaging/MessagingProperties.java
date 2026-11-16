@@ -35,4 +35,10 @@ public class MessagingProperties {
      * sandbox do SES, os destinatários também precisam estar verificados.
      */
     private String sesSenderEmail;
+
+    /**
+     * Configuration set do SES que envia bounces e reclamações ao tópico de alertas (criado no
+     * workbench-messaging). Vazio = envia sem configuration set.
+     */
+    private String sesConfigurationSet;
 }

@@ -61,7 +61,10 @@ server:
   port: 8080
 
 jwt:
-  secret: ${JWT_SECRET}
+  # Chave PÚBLICA da Lambda de autenticação (RS256), Base64 do DER. Sem padrão: sem ela não sobe.
+  public-key: ${JWT_PUBLIC_KEY}
+  # Chave PRIVADA do token de serviço que o os-service usa ao chamar o customer-service.
+  service-private-key: ${JWT_SERVICE_PRIVATE_KEY}
 
 # -----------------------------------------------------------------------------
 # Mensageria (SNS/SQS) — Fase 4, Etapa 2.
@@ -83,6 +86,8 @@ messaging:
   #  - ses: envia direto ao e-mail do cliente (exige SES_SENDER_EMAIL verificado no SES).
   notification-channel: ${NOTIFICATION_CHANNEL:sns}
   ses-sender-email: ${SES_SENDER_EMAIL:}
+  # Configuration set do SES (bounces e reclamações → tópico de alertas). Vazio = sem.
+  ses-configuration-set: ${SES_CONFIGURATION_SET:}
 
 # Validação de cliente/veículo no Customer Service (Fase 4, Etapa 6).
 #  - enabled=false (default): usa o NoopCustomerValidationAdapter (sem chamada REST),

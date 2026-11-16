@@ -215,7 +215,8 @@ unit-test ──▶ code-analysis ──▶ build ──▶ docker-build-push �
 | `SONAR_TOKEN` | org/repo | análise SonarCloud (sem ele, roda só o gate local) |
 | `AWS_ACCESS_KEY_ID_<ENV>`, `AWS_SECRET_ACCESS_KEY_<ENV>`, `AWS_REGION` | org | deploy EKS |
 | `DB_URL_OS_<ENV>`, `DB_USERNAME_OS`, `DB_PASSWORD_OS` | org | banco da OS (injetados no Secret do pod) |
-| `JWT_SECRET` | org | assinatura JWT compartilhada (igual em todos os serviços e na Lambda) |
+| `JWT_PUBLIC_KEY` | org | chave pública RS256 da Lambda de login (a mesma em todos os serviços) |
+| `JWT_SERVICE_PRIVATE_KEY` | org | chave privada do token de serviço que o os-service usa ao chamar o customer (restrinja o secret a este repositório) |
 | `DD_API_KEY` | org | (opcional) Datadog Agent + métricas |
 | `USE_AWS` (variable) | org/repo | `true` habilita o deploy no EKS |
 
@@ -233,7 +234,7 @@ unit-test ──▶ code-analysis ──▶ build ──▶ docker-build-push �
 | PostgreSQL 16 + Flyway | Banco próprio (SQL) + migrations |
 | AWS SNS/SQS (SDK v2) | Mensageria da Saga (comandos/eventos) + DLQ |
 | ShedLock (JDBC) | Lock distribuído dos jobs agendados (HPA) |
-| Spring Security + JWT (HS256) | Validação de token (assinatura compartilhada) |
+| Spring Security + JWT (RS256) | Validação de token com a chave pública da Lambda |
 | Micrometer + Datadog | Métricas de negócio e observabilidade |
 | SpringDoc OpenAPI | Swagger UI |
 | JaCoCo (gate 80%) + SonarCloud | Qualidade e cobertura |
@@ -249,7 +250,7 @@ Pré-requisitos: Java 21, Docker (para Testcontainers), um PostgreSQL acessível
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 ```
 
-> **Sem valores padrão para segredos.** Fora do perfil `local` (`JWT_SECRET` e a senha do banco) são
+> **Sem valores padrão para segredos.** Fora do perfil `local` (`JWT_PUBLIC_KEY`, `JWT_SERVICE_PRIVATE_KEY` e a senha do banco) são
 > obrigatórios: sem eles o serviço não sobe. O perfil `local` (`application-local.yml`)
 > traz os valores de desenvolvimento e é ativado pelo compose do `workbench-messaging`.
 
@@ -259,7 +260,8 @@ O Flyway cria o schema na subida. Configuração relevante (env):
 |---|---|---|
 | `SPRING_DATASOURCE_URL` / `_USERNAME` | Postgres local | Banco próprio da OS |
 | `SPRING_DATASOURCE_PASSWORD` | — (obrigatório; dev no perfil `local`) | Senha do banco |
-| `JWT_SECRET` | — (obrigatório; dev no perfil `local`) | Segredo HS256 compartilhado (validação de token e token de serviço) |
+| `JWT_PUBLIC_KEY` | — (obrigatório; dev no perfil `local`) | Chave **pública** RS256 da Lambda de login: o serviço verifica token, não emite |
+| `JWT_SERVICE_PRIVATE_KEY` | — (obrigatório; dev no perfil `local`) | Chave privada do token de serviço (`kid=os-service`) usado nas chamadas ao customer |
 | `MESSAGING_ENABLED` | `false` | Liga SNS/SQS; `false` usa adapters no-op (sem broker) |
 | `ORDER_EVENTS_TOPIC_ARN` | — | Tópico onde o orquestrador publica os comandos da Saga |
 | `SAGA_REPLIES_QUEUE_URL` | — | Fila de onde o orquestrador lê as respostas da Saga |
@@ -280,9 +282,11 @@ O Flyway cria o schema na subida. Configuração relevante (env):
 | Cliente sem e-mail | Publica mesmo assim | Não envia e registra no log |
 | Infra | Tópico + assinatura | Remetente verificado no SES (`workbench-messaging/ses.tf`) e permissão `ses:SendEmail` nos nós (`workbench-k8s-terraform`) |
 
-O canal SES tem um limite que o código não resolve: uma conta nova do SES está em **sandbox**, onde só
-se envia de remetente verificado **para destinatário verificado**. Para mandar a qualquer cliente é
-preciso pedir ao SES o acesso à produção (solicitação manual na AWS). Cada identidade verificada
+Uma conta nova do SES está em **sandbox**, onde só se envia de remetente verificado **para
+destinatário verificado**. Para mandar a qualquer cliente, a AWS precisa aprovar o acesso à
+produção: o pedido está em `workbench-messaging/scripts/ses-request-production.sh`. O serviço já
+envia pelo *configuration set* `workbench-customer-email` (`SES_CONFIGURATION_SET`, a pipeline
+define), que manda bounces e reclamações ao tópico de alertas — um requisito da AWS para a produção. Cada identidade verificada
 recebe um e-mail da AWS com um link que o dono precisa abrir. A falha de envio nunca reverte a OS
 (best-effort). O LocalStack da comunidade não tem SES; localmente o canal fica em `sns`.
 
@@ -342,7 +346,7 @@ O que os manifests garantem:
 
 > **Chamadas internas (token de serviço):** ao validar cliente/veículo e resolver o
 > e-mail no Customer Service, o OS Service usa um **token de serviço** (staff, curta
-> duração) emitido pelo `ServiceTokenProvider` com o `JWT_SECRET` compartilhado — porque
+> duração) emitido pelo `ServiceTokenProvider` com a chave privada do os-service (`kid=os-service`; só o customer confia nela) — porque
 > todos os serviços agora exigem token, inclusive em threads assíncronas da Saga.
 
 > **Pagamento automático + link ao cliente:** quando a OS entra em `PAGAMENTO_PENDENTE`,
@@ -381,7 +385,7 @@ O que os manifests garantem:
   campos obrigatórios dos comandos que o orquestrador publica e se ele aceita os eventos de
   exemplo do contrato (`src/test/resources/contracts/saga-messages.json`, cópia da fonte
   única em `workbench-messaging/contracts` — sincronize com `sync-saga-contract.sh`).
-- Cobertura atual (medida em 2026-11-15): **91,1% de linhas** e 75,5% de branches. O relatório fica em `target/site/jacoco/index.html`.
+- Cobertura atual (medida em 2026-11-16): **90,9% de linhas** e 75,0% de branches. O relatório fica em `target/site/jacoco/index.html`.
 - Evidência por execução do CI: artefato `jacoco-report` do job `unit-test` (relatório HTML) e o Quality Gate do SonarCloud no job `code-analysis`.
 
 ---

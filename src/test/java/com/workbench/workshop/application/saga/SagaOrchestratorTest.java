@@ -268,6 +268,22 @@ class SagaOrchestratorTest {
     }
 
     @Test
+    void firstRealRefusalWarnsEvenWithAnEarlierTimeoutReason() {
+        // Regressão: um timeout na baixa da reserva deixa um motivo registrado, e a 1ª recusa de
+        // verdade não avisava o cliente (o aviso só saía com o motivo vazio).
+        SagaState saga = sagaAt(SagaStep.AGUARDANDO_PAGAMENTO);
+        saga.recordFailure("timeout em ComandoConfirmarReserva");
+        when(sagaStateRepository.findByServiceOrderId(osId)).thenReturn(Optional.of(saga));
+        when(serviceOrderRepository.findById(osId))
+                .thenReturn(Optional.of(order(OrderServiceStatusEnum.PAGAMENTO_PENDENTE)));
+
+        orchestrator.onEvent("PagamentoFalhou", osId.toString(), osId, Map.of("reason", "cartao recusado"));
+
+        verify(customerNotificationPort, times(1)).notifyPaymentFailed(any());
+        assertEquals("cartao recusado", saga.getFailureReason());
+    }
+
+    @Test
     void failureAfterANewChargeWarnsAgain() {
         // Recusa → payment-retry (limpa o motivo) → nova recusa: é outra cobrança, avisa de novo.
         SagaState saga = sagaAt(SagaStep.AGUARDANDO_PAGAMENTO);

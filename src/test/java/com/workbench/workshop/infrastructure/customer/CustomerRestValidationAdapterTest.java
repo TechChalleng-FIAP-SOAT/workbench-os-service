@@ -1,5 +1,6 @@
 package com.workbench.workshop.infrastructure.customer;
 
+import com.workbench.workshop.support.TestKeys;
 import com.workbench.workshop.application.serviceorder.port.out.CustomerValidationPort;
 import com.workbench.workshop.application.serviceorder.port.out.CustomerValidationPort.CustomerValidationException;
 import com.workbench.workshop.infrastructure.security.JwtProperties;
@@ -18,7 +19,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class CustomerRestValidationAdapterTest {
 
     private final ServiceTokenProvider tokenProvider =
-            new ServiceTokenProvider(new JwtProperties("akmsdkmasfnjsgknakmsdkmasdkmsadfkmdsakmdkmsadsa"));
+            new ServiceTokenProvider(TestKeys.jwtProperties());
 
     private CustomerClientProperties props(String url) {
         var p = new CustomerClientProperties();

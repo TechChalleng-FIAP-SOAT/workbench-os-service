@@ -149,7 +149,10 @@ jobs:
       DB_URL_OS: ${{ github.ref_name == 'main' && secrets.DB_URL_OS_MAIN || secrets.DB_URL_OS_DEVELOP }}
       DB_USERNAME_OS: ${{ secrets.DB_USERNAME_OS || 'os_service' }}
       DB_PASSWORD_OS: ${{ secrets.DB_PASSWORD_OS }}
-      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      # JWT RS256: só a chave PÚBLICA (o serviço verifica, não emite token).
+      JWT_PUBLIC_KEY: ${{ secrets.JWT_PUBLIC_KEY }}
+      # Chave privada do token de serviço que o os-service usa ao chamar o customer.
+      JWT_SERVICE_PRIVATE_KEY: ${{ secrets.JWT_SERVICE_PRIVATE_KEY }}
       # Opcional: remetente verificado no SES. Com ele, o e-mail ao cliente sai pelo SES, direto
       # ao endereço do cliente. Sem ele, segue pelo tópico SNS (o e-mail vai para o inscrito).
       SES_SENDER_EMAIL: ${{ secrets.SES_SENDER_EMAIL }}
@@ -158,7 +161,7 @@ jobs:
       - name: Validar secrets obrigatórios
         run: |
           missing=0
-          for v in DB_URL_OS DB_USERNAME_OS DB_PASSWORD_OS JWT_SECRET; do
+          for v in DB_URL_OS DB_USERNAME_OS DB_PASSWORD_OS JWT_PUBLIC_KEY JWT_SERVICE_PRIVATE_KEY; do
             if [ -z "${!v}" ]; then
               case "${v}" in
                 DB_URL_*) src="${v}_MAIN / ${v}_DEVELOP" ;;
@@ -220,7 +223,8 @@ jobs:
           # Canal do e-mail ao cliente: SES só com remetente configurado (o serviço não sobe
           # com ses e sem remetente); sem ele, continua no tópico SNS.
           if [ -n "${SES_SENDER_EMAIL}" ]; then
-            NOTIFICATION_ARGS=(--from-literal NOTIFICATION_CHANNEL="ses" --from-literal SES_SENDER_EMAIL="${SES_SENDER_EMAIL}")
+            NOTIFICATION_ARGS=(--from-literal NOTIFICATION_CHANNEL="ses" --from-literal SES_SENDER_EMAIL="${SES_SENDER_EMAIL}"
+              --from-literal SES_CONFIGURATION_SET="workbench-customer-email")
           else
             NOTIFICATION_ARGS=(--from-literal NOTIFICATION_CHANNEL="sns")
           fi
@@ -241,7 +245,8 @@ jobs:
             --from-literal SPRING_DATASOURCE_URL="${DB_URL_OS}" \
             --from-literal SPRING_DATASOURCE_USERNAME="${DB_USERNAME_OS}" \
             --from-literal SPRING_DATASOURCE_PASSWORD="${DB_PASSWORD_OS}" \
-            --from-literal JWT_SECRET="${JWT_SECRET}" \
+            --from-literal JWT_PUBLIC_KEY="${JWT_PUBLIC_KEY}" \
+            --from-literal JWT_SERVICE_PRIVATE_KEY="${JWT_SERVICE_PRIVATE_KEY}" \
             --from-literal DD_API_KEY="${DD_API_KEY}" \
             --dry-run=client -o yaml | kubectl apply -f -
           # O LB do Service passou a ser NLB interno (k8s/app.yaml). O esquema de um LB não

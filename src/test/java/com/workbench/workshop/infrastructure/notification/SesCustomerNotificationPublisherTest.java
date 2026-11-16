@@ -155,4 +155,15 @@ class SesCustomerNotificationPublisherTest {
         assertThrows(IllegalStateException.class,
                 () -> new SesCustomerNotificationPublisher(sesClient, props("  "), clientContactPort));
     }
+
+    @Test
+    void usesTheConfigurationSetSoBouncesReachTheAlertsTopic() {
+        MessagingProperties withSet = props("oficina@exemplo.com");
+        withSet.setSesConfigurationSet("workbench-customer-email");
+        when(clientContactPort.findEmailByDocument(any())).thenReturn(java.util.Optional.of("cliente@exemplo.com"));
+        new SesCustomerNotificationPublisher(sesClient, withSet, clientContactPort)
+                .notifyPaymentFailed(order());
+
+        assertEquals("workbench-customer-email", sent().configurationSetName());
+    }
 }
