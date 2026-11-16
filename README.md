@@ -381,7 +381,7 @@ O que os manifests garantem:
   campos obrigatórios dos comandos que o orquestrador publica e se ele aceita os eventos de
   exemplo do contrato (`src/test/resources/contracts/saga-messages.json`, cópia da fonte
   única em `workbench-messaging/contracts` — sincronize com `sync-saga-contract.sh`).
-- Cobertura atual (medida em 2026-11-15): **89,8% de linhas** e 73,7% de branches. O relatório fica em `target/site/jacoco/index.html`.
+- Cobertura atual (medida em 2026-11-15): **91,1% de linhas** e 75,5% de branches. O relatório fica em `target/site/jacoco/index.html`.
 - Evidência por execução do CI: artefato `jacoco-report` do job `unit-test` (relatório HTML) e o Quality Gate do SonarCloud no job `code-analysis`.
 
 ---
