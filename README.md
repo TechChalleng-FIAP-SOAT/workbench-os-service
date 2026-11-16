@@ -98,6 +98,16 @@ Diagnóstico ──ComandoReservarEstoque──▶ Execution ──ReservaConfir
   (cliente paga; o Billing consulta o Mercado Pago) ──PagamentoConfirmado──▶ PAGO → ENTREGUE
 ```
 
+> **Pagamento, passo a passo e com diagrama:** o desenho completo (quem cria a cobrança, quando
+> o cliente recebe o link, como o pagamento é detectado, recusa e nova cobrança) está no README do
+> Billing, seção **Fluxo de pagamento**
+> ([workbench-billing-service](https://github.com/TechChalleng-FIAP-SOAT/workbench-billing-service#fluxo-de-pagamento)).
+> O papel **deste** serviço: dispara `ComandoCobrarPagamento` quando a OS entra em
+> `PAGAMENTO_PENDENTE`, envia o **e-mail com o link** ao receber `CobrancaCriada`, aceita
+> `PagamentoConfirmado` só da rodada atual da Saga e, então, leva a OS a `PAGO` → `ENTREGUE` e
+> envia **um e-mail** com o status final. Pagamento recusado **não** envia e-mail: a OS fica
+> retida e o cliente pede nova cobrança em `POST /order/{id}/payment-retry`.
+
 > Nomes, campos obrigatórios e exemplos de cada mensagem estão no contrato executável
 > `workbench-messaging/contracts/saga-messages.json`; o `OsSagaContractTest` falha se o
 > código divergir dele. No código, os nomes ficam em `SagaMessages` (constantes em inglês,

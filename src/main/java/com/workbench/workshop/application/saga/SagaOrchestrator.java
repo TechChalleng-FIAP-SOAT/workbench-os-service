@@ -352,14 +352,18 @@ public class SagaOrchestrator {
         log.info("Cobrança criada; link de pagamento enviado ao cliente; aguardando confirmação: os={}", osId);
     }
 
-    // Pagamento confirmado → OS vai para PAGO e, em seguida, ENTREGUE.
+    // Pagamento confirmado → OS vai para PAGO e, em seguida, ENTREGUE. O cliente recebe UM e-mail,
+    // o do estado final: a OS passa por PAGO e ENTREGUE na mesma transação, então avisar nos dois
+    // mandaria duas mensagens no mesmo segundo.
     private void onPaymentConfirmed(SagaState saga, UUID osId) {
         advanceOrder(osId, OrderServiceStatusEnum.PAGO);
-        advanceOrder(osId, OrderServiceStatusEnum.ENTREGUE);
+        ServiceOrder delivered = advanceOrder(osId, OrderServiceStatusEnum.ENTREGUE);
         saga.advanceTo(SagaStep.CONCLUIDA, "PAGAMENTO");
         saga.clearPendingCommand();
         saga.markCompleted();
         sagaStateRepository.save(saga);
+        AfterCommit.run("e-mail de pagamento confirmado da OS " + osId,
+                () -> customerNotificationPort.notifyCustomer(delivered));
         log.info("Pagamento confirmado; Saga concluída (OS paga e entregue): os={}", osId);
     }
 
@@ -453,11 +457,11 @@ public class SagaOrchestrator {
         sagaStateRepository.save(saga);
     }
 
-    private void advanceOrder(UUID osId, OrderServiceStatusEnum target) {
+    private ServiceOrder advanceOrder(UUID osId, OrderServiceStatusEnum target) {
         ServiceOrder order = serviceOrderRepository.findById(osId)
                 .orElseThrow(() -> new NoSuchElementException("Ordem de serviço não encontrada: " + osId));
         order.advanceTo(target);
-        serviceOrderRepository.save(order);
+        return serviceOrderRepository.save(order);
     }
 
     private String writeJson(Map<String, Object> payload) {
