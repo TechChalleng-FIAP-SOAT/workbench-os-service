@@ -22,6 +22,10 @@ spec:
         app: os-service
         tags.datadoghq.com/service: os-service
         tags.datadoghq.com/version: "1.0.0"
+        # O admission controller do Datadog está com mutateUnlabelled=false (k8s/datadog/values.yaml):
+        # só injeta o dd-java-agent (APM/traces) em pod com esta label. Sem ela, os widgets e
+        # monitors de trace.servlet.request ficam vazios.
+        admission.datadoghq.com/enabled: "true"
       annotations:
         # Versão fixa do dd-java-agent injetado (reprodutível; atualize de propósito).
         admission.datadoghq.com/java-lib.version: "v1.68.2"
