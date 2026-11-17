@@ -1,0 +1,108 @@
+{
+  "title": "Workbench | Requisições por Serviço e URL",
+  "description": "Quantas requisições cada microsserviço (os/billing/execution/customer) recebeu e em qual URL (rota). Duas fontes: Micrometer (http.server.requests, só precisa da DD_API_KEY) e APM (trace.servlet.request, precisa do agente Java injetado). A URL é o padrão da rota (ex.: /order/{id}), não o valor do parâmetro. Variável env: developer/homolog/production.",
+  "layout_type": "ordered",
+  "template_variables": [
+    {
+      "name": "env",
+      "prefix": "env",
+      "default": "production",
+      "available_values": ["developer", "homolog", "production"]
+    },
+    {
+      "name": "service",
+      "prefix": "service",
+      "default": "*",
+      "available_values": ["os-service", "billing-service", "customer-service", "execution-service"]
+    }
+  ],
+  "widgets": [
+    {
+      "definition": {
+        "type": "group",
+        "title": "Requisições por serviço (Micrometer: http.server.requests)",
+        "layout_type": "ordered",
+        "widgets": [
+          {
+            "definition": {
+              "type": "toplist",
+              "title": "Total de requisições por serviço e URL (período selecionado)",
+              "requests": [
+                {
+                  "q": "top(sum:http.server.requests.count{env:$env,$service} by {service,method,uri}.as_count(), 50, 'sum', 'desc')"
+                }
+              ]
+            }
+          },
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "Requisições por serviço (req/min)",
+              "requests": [
+                {
+                  "q": "sum:http.server.requests.count{env:$env,$service} by {service}.as_count()",
+                  "display_type": "bars"
+                }
+              ]
+            }
+          },
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "Requisições por URL (req/min)",
+              "requests": [
+                {
+                  "q": "sum:http.server.requests.count{env:$env,$service} by {service,uri}.as_count()",
+                  "display_type": "line"
+                }
+              ]
+            }
+          },
+          {
+            "definition": {
+              "type": "toplist",
+              "title": "Requisições com erro (status 4xx/5xx) por serviço e URL",
+              "requests": [
+                {
+                  "q": "top(sum:http.server.requests.count{env:$env,$service,outcome:(client_error OR server_error)} by {service,method,uri,status}.as_count(), 25, 'sum', 'desc')"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "type": "group",
+        "title": "Requisições por serviço (APM: trace.servlet.request)",
+        "layout_type": "ordered",
+        "widgets": [
+          {
+            "definition": {
+              "type": "toplist",
+              "title": "Total de requisições por serviço e rota (APM)",
+              "requests": [
+                {
+                  "q": "top(sum:trace.servlet.request.hits{env:$env,$service} by {service,resource_name}.as_count(), 50, 'sum', 'desc')"
+                }
+              ]
+            }
+          },
+          {
+            "definition": {
+              "type": "timeseries",
+              "title": "Requisições por rota (APM, req/s)",
+              "requests": [
+                {
+                  "q": "sum:trace.servlet.request.hits{env:$env,$service} by {service,resource_name}.as_rate()",
+                  "display_type": "line"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
