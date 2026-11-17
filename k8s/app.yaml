@@ -83,7 +83,10 @@ spec:
           resources:
             requests:
               cpu: 250m
-              memory: 512Mi
+              # 384Mi: o uso real é ~300Mi e o limite (1Gi) continua protegendo. Com 512Mi os 4
+              # serviços (2 nós t3.small, ~1,4Gi alocável cada) não deixam espaço para o
+              # maxSurge do rolling update e o pod novo fica Pending (Insufficient memory).
+              memory: 384Mi
             limits:
               cpu: "1"
               memory: 1Gi
